@@ -167,7 +167,7 @@ impl<'a> Lexer<'a> {
     fn comment(&mut self) -> Option<Token> {
         match self.stream.next().unwrap() {
             '-' => match self.stream.next() {
-                Some('-') => todo!(),
+                Some('-') => Some(Token::Comment(self.take_while(|x| x != '\n'))),
                 None => self.fallback(1),
                 _ => self.fallback(2),
             },
