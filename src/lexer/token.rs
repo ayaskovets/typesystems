@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#[derive(Debug)] // TODO
+#[derive(Debug)]
 pub enum Token {
     // single-char tokens
     Comma,

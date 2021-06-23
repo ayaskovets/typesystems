@@ -23,6 +23,28 @@ impl<'a> Lexer<'a> {
             stream: Stream::new(chars),
         }
     }
+}
+
+impl<'a> Lexer<'a> {
+    fn fallback(&mut self, len: usize) -> Option<Token> {
+        self.stream.undo(len);
+        None
+    }
+
+    fn squash<P>(&mut self, predicate: P)
+    where
+        P: Fn(char) -> bool,
+    {
+        loop {
+            if let Some(c) = self.stream.next() {
+                if !predicate(c) {
+                    self.stream.undo(1);
+                    break;
+                }
+            }
+            break;
+        }
+    }
 
     fn take_while<P>(&mut self, predicate: P) -> String
     where
@@ -43,43 +65,73 @@ impl<'a> Lexer<'a> {
         }
         taken
     }
+}
 
-    fn startswith(&mut self, c: char) -> Token {
-        match c {
-            // single-char tokens
-            ',' => Token::Comma,
-            '.' => Token::Dot,
-            '(' => Token::Lparen,
-            ')' => Token::Rparen,
-            '[' => Token::Lbracket,
-            ']' => Token::Rbracket,
-            '=' => Token::Equals,
+impl<'a> Lexer<'a> {
+    fn symbol(&mut self) -> Option<Token> {
+        match self.stream.next().unwrap() {
+            ',' => Some(Token::Comma),
+            '.' => Some(Token::Dot),
+            '(' => Some(Token::Lparen),
+            ')' => Some(Token::Rparen),
+            '[' => Some(Token::Lbracket),
+            ']' => Some(Token::Rbracket),
+            '=' => Some(Token::Equals),
             ' ' | '\t' | '\r' => {
-                self.take_while(|x| matches!(x, ' ' | '\t' | '\r'));
-                Token::Spacing
+                self.squash(|x| matches!(x, ' ' | '\t' | '\r'));
+                Some(Token::Spacing)
             }
             '\n' => {
-                self.take_while(|x| matches!(x, '\n'));
-                Token::Newline
+                self.squash(|x| matches!(x, '\n'));
+                Some(Token::Newline)
             }
-            // operators / etc
-            '-' => {
-                todo!()
-            }
-            // keywords / identifiers
+            _ => self.fallback(1),
+        }
+    }
+
+    fn operator(&mut self) -> Option<Token> {
+        match self.stream.next().unwrap() {
+            '-' => match self.stream.next() {
+                Some('>') => Some(Token::Arrow),
+                None => self.fallback(1),
+                _ => self.fallback(2),
+            },
+            _ => self.fallback(1),
+        }
+    }
+
+    fn kw_or_ident(&mut self) -> Option<Token> {
+        match self.stream.next().unwrap() {
             'a'..='z' | 'A'..='Z' | '_' => {
                 self.stream.undo(1);
                 let ident =
                     self.take_while(|x| matches!(x, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'));
                 match ident.as_str() {
-                    "fn" => Token::Fn,
-                    "forall" => Token::Forall,
-                    "in" => Token::In,
-                    "let" => Token::Let,
-                    _ => Token::Ident(ident),
+                    "fn" => Some(Token::Fn),
+                    "forall" => Some(Token::Forall),
+                    "in" => Some(Token::In),
+                    "let" => Some(Token::Let),
+                    _ => Some(Token::Ident(ident)),
                 }
             }
-            // numbers
+            _ => self.fallback(1),
+        }
+    }
+
+    fn number(&mut self) -> Option<Token> {
+        match self.stream.next().unwrap() {
+            '-' => match self.stream.next() {
+                Some('0'..='9') => {
+                    self.stream.undo(1);
+                    if let Some(Token::Number(mut number)) = self.number() {
+                        number.insert(0, '-');
+                        return Some(Token::Number(number));
+                    }
+                    unreachable!()
+                }
+                None => self.fallback(1),
+                _ => self.fallback(2),
+            },
             '0'..='9' => {
                 self.stream.undo(1);
                 let mut number = self.take_while(|x| matches!(x, '0'..='9'));
@@ -106,18 +158,36 @@ impl<'a> Lexer<'a> {
                     self.stream.undo(1);
                 }
 
-                Token::Number(number)
+                Some(Token::Number(number))
             }
-            _ => panic!("Unexpected character '{}'", c),
+            _ => self.fallback(1),
+        }
+    }
+
+    fn comment(&mut self) -> Option<Token> {
+        match self.stream.next().unwrap() {
+            '-' => match self.stream.next() {
+                Some('-') => todo!(),
+                None => self.fallback(1),
+                _ => self.fallback(2),
+            },
+            _ => self.fallback(1),
         }
     }
 }
 
+#[rustfmt::skip]
 impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         self.stream.next().and_then(|c| {
-            let token = Some(self.startswith(c));
+            self.stream.undo(1);
+            let token = self.symbol().or_else(
+                     || self.operator().or_else(
+                     || self.kw_or_ident().or_else(
+                     || self.number().or_else(
+                     || self.comment().or_else(
+                     || panic!("Unexpected character '{}'", c))))));
             self.stream.commit();
             token
         })
