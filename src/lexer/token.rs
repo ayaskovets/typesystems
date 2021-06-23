@@ -26,7 +26,6 @@ pub enum Token {
     Let,
     // variable-size tokens
     Ident(String),
-    Integer(i32),
-    Floating(f32),
+    Number(String),
     Comment(String),
 }
