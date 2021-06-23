@@ -8,7 +8,9 @@
 mod lexer;
 
 fn main() {
-    let lex = lexer::Lexer::new("forall[a].wtf".chars());
+    lexer::test();
+
+    let lex = lexer::Lexer::new("forall a. a -> a".chars());
     for t in lex {
         println!("{:?}", t);
     }
