@@ -9,16 +9,14 @@ mod stream;
 use stream::Stream;
 
 mod token;
-use token::Token;
-
-use std::str::Chars;
+pub use token::Token;
 
 pub struct Lexer<'a> {
     stream: Stream<'a>,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(chars: Chars<'a>) -> Self {
+    pub fn new(chars: std::str::Chars<'a>) -> Self {
         Self {
             stream: Stream::new(chars),
         }
@@ -37,7 +35,9 @@ impl<'a> Lexer<'a> {
     {
         loop {
             if let Some(c) = self.stream.next() {
-                if !predicate(c) {
+                if predicate(c) {
+                    continue;
+                } else {
                     self.stream.undo(1);
                     break;
                 }
@@ -136,27 +136,29 @@ impl<'a> Lexer<'a> {
                 self.stream.undo(1);
                 let mut number = self.take_while(|x| matches!(x, '0'..='9'));
 
-                if let Some('.') = self.stream.next() {
-                    let fraction = self.take_while(|x| matches!(x, '0'..='9'));
-                    if !fraction.is_empty() {
-                        number.push('.');
-                        number.push_str(fraction.as_str());
-                    } else {
-                        self.stream.undo(1);
+                match self.stream.next() {
+                    Some('.') => {
+                        let fraction = self.take_while(|x| matches!(x, '0'..='9'));
+                        if !fraction.is_empty() {
+                            number.push('.');
+                            number.push_str(fraction.as_str());
+                        }
                     }
-                } else {
-                    self.stream.undo(1);
-                }
+                    None => (),
+                    _ => self.stream.undo(1),
+                };
 
-                if let Some('e') = self.stream.next() {
-                    let exponent = self.take_while(|x| matches!(x, '0'..='9'));
-                    if !exponent.is_empty() {
-                        number.push('e');
-                        number.push_str(exponent.as_str());
+                match self.stream.next() {
+                    Some('e') => {
+                        let exponent = self.take_while(|x| matches!(x, '0'..='9'));
+                        if !exponent.is_empty() {
+                            number.push('e');
+                            number.push_str(exponent.as_str());
+                        }
                     }
-                } else {
-                    self.stream.undo(1);
-                }
+                    None => (),
+                    _ => self.stream.undo(1),
+                };
 
                 Some(Token::Number(number))
             }
@@ -192,27 +194,4 @@ impl<'a> Iterator for Lexer<'a> {
             token
         })
     }
-}
-
-pub fn test() {
-    let cs = "abcdefgh";
-    let mut s = Stream::new(cs.chars());
-    println!("{}", s.next().unwrap());
-    println!("{}", s.next().unwrap());
-    s.undo(2);
-    println!("r: {}", s.next().unwrap());
-    println!("{}", s.next().unwrap());
-    s.commit();
-    s.undo(1);
-    println!("c: {}", s.next().unwrap());
-    s.undo(1);
-    println!("r: {}", s.next().unwrap());
-    println!("{}", s.next().unwrap());
-    println!("{}", s.next().unwrap());
-    s.commit();
-    println!("c1: {}", s.next().unwrap());
-    println!("{}", s.next().unwrap());
-    println!("{}", s.next().unwrap());
-    s.undo(3);
-    println!("r: {}", s.next().unwrap());
 }
