@@ -47,3 +47,46 @@ impl<'a> Iterator for Stream<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Stream;
+
+    #[test]
+    fn undo() {
+        let mut s = Stream::new("abc".chars());
+        assert_eq!(s.next(), Some('a'));
+        assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.next(), Some('c'));
+        s.undo(2);
+        assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.next(), Some('c'));
+    }
+
+    #[test]
+    fn commit() {
+        let mut s = Stream::new("abcd".chars());
+        assert_eq!(s.next(), Some('a'));
+        assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.next(), Some('c'));
+        s.undo(1);
+        s.commit();
+        assert_eq!(s.next(), Some('c'));
+        assert_eq!(s.next(), Some('d'));
+    }
+
+    #[test]
+    fn overflow() {
+        let mut s = Stream::new("ab".chars());
+        assert_eq!(s.next(), Some('a'));
+        assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.next(), None);
+        assert_eq!(s.next(), None);
+        s.undo(1);
+        assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.next(), None);
+        s.commit();
+        s.undo(42);
+        assert_eq!(s.next(), None);
+    }
+}
