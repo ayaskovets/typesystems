@@ -6,16 +6,18 @@
  */
 
 use std::collections::VecDeque;
-use std::str::Chars;
 
-pub struct Stream<'a> {
-    cs: Chars<'a>,
+pub struct Stream<I: Iterator<Item = char>> {
+    cs: I,
     undo: VecDeque<char>,
     len: usize,
 }
 
-impl<'a> Stream<'a> {
-    pub fn new(chars: Chars<'a>) -> Self {
+impl<I> Stream<I>
+where
+    I: Iterator<Item = char>,
+{
+    pub fn new(chars: I) -> Self {
         Self {
             cs: chars,
             undo: VecDeque::new(),
@@ -33,7 +35,10 @@ impl<'a> Stream<'a> {
     }
 }
 
-impl<'a> Iterator for Stream<'a> {
+impl<I> Iterator for Stream<I>
+where
+    I: Iterator<Item = char>,
+{
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         if self.len > 0 {

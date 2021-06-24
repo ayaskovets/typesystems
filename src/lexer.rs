@@ -11,19 +11,25 @@ use stream::Stream;
 mod token;
 pub use token::Token;
 
-pub struct Lexer<'a> {
-    stream: Stream<'a>,
+pub struct Lexer<I: Iterator<Item = char>> {
+    stream: Stream<I>,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(chars: std::str::Chars<'a>) -> Self {
+impl<I> Lexer<I>
+where
+    I: Iterator<Item = char>,
+{
+    pub fn new(chars: I) -> Self {
         Self {
             stream: Stream::new(chars),
         }
     }
 }
 
-impl<'a> Lexer<'a> {
+impl<I> Lexer<I>
+where
+    I: Iterator<Item = char>,
+{
     fn fallback(&mut self, len: usize) -> Option<Token> {
         self.stream.undo(len);
         None
@@ -67,7 +73,10 @@ impl<'a> Lexer<'a> {
     }
 }
 
-impl<'a> Lexer<'a> {
+impl<I> Lexer<I>
+where
+    I: Iterator<Item = char>,
+{
     fn symbol(&mut self) -> Option<Token> {
         match self.stream.next().unwrap() {
             ',' => Some(Token::Comma),
@@ -179,7 +188,7 @@ impl<'a> Lexer<'a> {
 }
 
 #[rustfmt::skip]
-impl<'a> Iterator for Lexer<'a> {
+impl<I> Iterator for Lexer<I> where I: Iterator<Item = char>, {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         self.stream.next().and_then(|c| {
