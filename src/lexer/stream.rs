@@ -7,19 +7,16 @@
 
 use std::collections::VecDeque;
 
-pub struct Stream<I: Iterator<Item = char>> {
-    cs: I,
-    undo: VecDeque<char>,
+pub struct Stream<'a, T> {
+    iter: Box<dyn Iterator<Item = T> + 'a>,
+    undo: VecDeque<T>,
     len: usize,
 }
 
-impl<I> Stream<I>
-where
-    I: Iterator<Item = char>,
-{
-    pub fn new(chars: I) -> Self {
+impl<'a, T> Stream<'a, T> {
+    pub fn new<I: Iterator<Item = T> + 'a>(iter: I) -> Self {
         Self {
-            cs: chars,
+            iter: Box::new(iter),
             undo: VecDeque::new(),
             len: 0,
         }
@@ -35,20 +32,17 @@ where
     }
 }
 
-impl<I> Iterator for Stream<I>
-where
-    I: Iterator<Item = char>,
-{
-    type Item = char;
+impl<'a, T: Copy> Iterator for Stream<'a, T> {
+    type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.len > 0 {
             self.len -= 1;
             return Some(self.undo[self.len]);
         }
 
-        self.cs.next().and_then(|c| {
-            self.undo.push_front(c);
-            Some(c)
+        self.iter.next().and_then(|t| {
+            self.undo.push_front(t);
+            Some(t)
         })
     }
 }
