@@ -13,6 +13,10 @@ pub struct Stream<'a, T> {
     len: usize,
 }
 
+pub trait Streamable<T>: Sized + std::fmt::Debug {
+    fn from(s: &mut Stream<T>) -> Option<Self>;
+}
+
 impl<'a, T> Stream<'a, T> {
     pub fn new<I: Iterator<Item = T> + 'a>(iter: I) -> Self {
         Self {
