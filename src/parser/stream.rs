@@ -32,16 +32,16 @@ impl<'a, T> Stream<'a, T> {
     }
 }
 
-impl<'a, T: Copy> Iterator for Stream<'a, T> {
+impl<'a, T: Clone> Iterator for Stream<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.len > 0 {
             self.len -= 1;
-            return Some(self.undo[self.len]);
+            return Some(self.undo[self.len].clone());
         }
 
         self.iter.next().and_then(|t| {
-            self.undo.push_front(t);
+            self.undo.push_front(t.clone());
             Some(t)
         })
     }

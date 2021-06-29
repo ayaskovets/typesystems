@@ -5,5 +5,5 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-mod lexer;
-pub use lexer::{Lexer, Token};
+mod parser;
+pub use parser::Parser;

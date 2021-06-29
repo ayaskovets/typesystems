@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     // single-char tokens
     Comma,
