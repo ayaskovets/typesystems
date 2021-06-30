@@ -30,6 +30,16 @@ where
             to_t: std::marker::PhantomData::<To>,
         }
     }
+
+    pub fn into<OtherTo>(self) -> Tokenizer<'a, From, OtherTo>
+    where
+        OtherTo: Streamable<From>,
+    {
+        Tokenizer {
+            from_stream: self.from_stream,
+            to_t: std::marker::PhantomData::<OtherTo>,
+        }
+    }
 }
 
 impl<'a, From, To> Iterator for Tokenizer<'a, From, To>
