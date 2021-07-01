@@ -21,8 +21,8 @@ where
         P: Fn(&T) -> bool,
     {
         loop {
-            if let Some(c) = self.next() {
-                if predicate(&c) {
+            if let Some(t) = self.next() {
+                if predicate(&t) {
                     continue;
                 } else {
                     self.undo(1);
@@ -39,9 +39,9 @@ where
     {
         let mut taken: Vec<T> = Vec::new();
         loop {
-            if let Some(c) = self.next() {
-                if predicate(&c) {
-                    taken.push(c);
+            if let Some(t) = self.next() {
+                if predicate(&t) {
+                    taken.push(t);
                     continue;
                 } else {
                     self.undo(1);
@@ -52,4 +52,6 @@ where
         }
         taken
     }
+
+    // TODO: BETWEEN, SEPBY, FOLLOWEDBY etc.
 }
