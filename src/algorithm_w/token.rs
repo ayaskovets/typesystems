@@ -7,8 +7,6 @@
 
 pub use parser_stream::{Stream, Streamable};
 
-// TODO: PROCEDURAL MACRO FOR PARSING FNS
-
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Comma,
