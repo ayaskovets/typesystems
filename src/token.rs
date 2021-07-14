@@ -5,8 +5,67 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-pub(crate) use crate::util;
 pub use tokenstream::{Stream, Streamable};
+
+fn identifier(s: &mut Stream<char>) -> String {
+    let mut ident = String::new();
+    match s.next().unwrap() {
+        'a'..='z' | 'A'..='Z' | '_' => {
+            s.undo(1);
+            ident = s
+                .take_while(|x| matches!(x, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+                .into_iter()
+                .collect();
+        }
+        _ => s.undo(1),
+    }
+    ident
+}
+
+fn number(s: &mut Stream<char>) -> String {
+    let mut num = String::new();
+    match s.next().unwrap() {
+        '0'..='9' => {
+            s.undo(1);
+            num = s
+                .take_while(|x| matches!(x, '0'..='9'))
+                .into_iter()
+                .collect();
+
+            match s.next() {
+                Some('.') => {
+                    let fraction: String = s
+                        .take_while(|x| matches!(x, '0'..='9'))
+                        .into_iter()
+                        .collect();
+                    if !fraction.is_empty() {
+                        num.push('.');
+                        num.push_str(fraction.as_str());
+                    }
+                }
+                None => (),
+                _ => s.undo(1),
+            };
+
+            match s.next() {
+                Some('e') => {
+                    let exponent: String = s
+                        .take_while(|x| matches!(x, '0'..='9'))
+                        .into_iter()
+                        .collect();
+                    if !exponent.is_empty() {
+                        num.push('e');
+                        num.push_str(exponent.as_str());
+                    }
+                }
+                None => (),
+                _ => s.undo(1),
+            };
+        }
+        _ => s.undo(1),
+    }
+    num
+}
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
@@ -49,7 +108,7 @@ pub enum Token {
     Comment(String),
 }
 
-pub fn keyword(s: &str) -> Option<Token> {
+fn keyword(s: &str) -> Option<Token> {
     match s {
         "fn" => Some(Token::Fn),
         "forall" => Some(Token::Forall),
@@ -120,18 +179,18 @@ impl Streamable<char> for Token {
                 )),
                 Some('0'..='9') => {
                     s.undo(1);
-                    Some(Token::Number("-".to_owned() + &util::number(s)))
+                    Some(Token::Number("-".to_owned() + &number(s)))
                 }
                 Some(_) => s.fallback(2),
             },
             'a'..='z' | 'A'..='Z' | '_' => {
                 s.undo(1);
-                let ident = util::identifier(s);
+                let ident = identifier(s);
                 keyword(ident.as_str()).or_else(|| Some(Token::Ident(ident)))
             }
             '0'..='9' => {
                 s.undo(1);
-                Some(Token::Number(util::number(s)))
+                Some(Token::Number(number(s)))
             }
             _ => s.fallback(1),
         }
