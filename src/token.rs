@@ -199,8 +199,8 @@ impl Streamable<char> for Token {
 
 #[cfg(test)]
 mod tests {
-    use tokenstream::Lexer;
     use super::{Token, Token::*};
+    use tokenstream::Lexer;
 
     fn collect(s: &str) -> Vec<Token> {
         Lexer::new(s.chars()).collect()
