@@ -5,18 +5,16 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use super::Stream;
+use crate::{Combinator, Stream, Tokenizer};
+
+pub type Lexer<'a, Token> = Tokenizer<'a, char, Token>;
+pub type Parser<'a, Token, Expr> = Tokenizer<'a, Token, Expr>;
 
 impl<'a, T> Stream<'a, T>
 where
     T: Clone,
 {
-    pub fn fallback<Any>(&mut self, len: usize) -> Option<Any> {
-        self.undo(len);
-        None
-    }
-
-    pub fn squash<P>(&mut self, predicate: P)
+    pub fn skip<P>(&mut self, predicate: P)
     where
         P: Fn(&T) -> bool,
     {
@@ -33,7 +31,7 @@ where
         }
     }
 
-    pub fn take_while<P>(&mut self, predicate: P) -> Vec<T>
+    pub fn take<P>(&mut self, predicate: P) -> Vec<T>
     where
         P: Fn(&T) -> bool,
     {
@@ -51,5 +49,18 @@ where
             break;
         }
         taken
+    }
+}
+
+impl<'a, From> Stream<'a, From>
+where
+    From: Clone,
+{
+    pub fn run<To>(&mut self, combinator: Combinator<From, To>) -> Option<To> {
+        let len = self.len();
+        (combinator.f)(self).or_else(|| {
+            self.undo(self.len() - len);
+            None
+        })
     }
 }

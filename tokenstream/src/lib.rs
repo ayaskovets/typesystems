@@ -11,8 +11,8 @@ pub use stream::*;
 mod tokenizer;
 pub use tokenizer::*;
 
+mod combinator;
+pub use combinator::*;
+
 mod util;
 pub use util::*;
-
-pub type Lexer<'a, Token> = Tokenizer<'a, char, Token>;
-pub type Parser<'a, Token, Expr> = Tokenizer<'a, Token, Expr>;
