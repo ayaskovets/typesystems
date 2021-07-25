@@ -13,7 +13,7 @@ fn identifier(s: &mut Stream<char>) -> String {
         'a'..='z' | 'A'..='Z' | '_' => {
             s.undo(1);
             ident = s
-                .take_while(|x| matches!(x, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+                .take(|x| matches!(x, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
                 .into_iter()
                 .collect();
         }
@@ -27,17 +27,11 @@ fn number(s: &mut Stream<char>) -> String {
     match s.next().unwrap() {
         '0'..='9' => {
             s.undo(1);
-            num = s
-                .take_while(|x| matches!(x, '0'..='9'))
-                .into_iter()
-                .collect();
+            num = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
 
             match s.next() {
                 Some('.') => {
-                    let fraction: String = s
-                        .take_while(|x| matches!(x, '0'..='9'))
-                        .into_iter()
-                        .collect();
+                    let fraction: String = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
                     if !fraction.is_empty() {
                         num.push('.');
                         num.push_str(fraction.as_str());
@@ -49,10 +43,7 @@ fn number(s: &mut Stream<char>) -> String {
 
             match s.next() {
                 Some('e') => {
-                    let exponent: String = s
-                        .take_while(|x| matches!(x, '0'..='9'))
-                        .into_iter()
-                        .collect();
+                    let exponent: String = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
                     if !exponent.is_empty() {
                         num.push('e');
                         num.push_str(exponent.as_str());
@@ -126,6 +117,7 @@ fn keyword(s: &str) -> Option<Token> {
     }
 }
 
+// fixed lexer token tree, a little messy but fast
 impl Streamable<char> for Token {
     fn from(s: &mut Stream<char>) -> Option<Token> {
         match s.next().unwrap() {
@@ -164,24 +156,30 @@ impl Streamable<char> for Token {
                 }
             }
             ' ' | '\t' | '\r' => {
-                s.squash(|x| matches!(x, ' ' | '\t' | '\r'));
+                s.skip(|x| matches!(x, ' ' | '\t' | '\r'));
                 Some(Token::Spacing)
             }
             '\n' => {
-                s.squash(|x| matches!(x, '\n'));
+                s.skip(|x| matches!(x, '\n'));
                 Some(Token::Newline)
             }
             '-' => match s.next() {
-                None => s.fallback(1),
+                None => {
+                    s.undo(1);
+                    None
+                }
                 Some('>') => Some(Token::Arrow),
                 Some('-') => Some(Token::Comment(
-                    s.take_while(|x| !matches!(x, '\n')).into_iter().collect(),
+                    s.take(|x| !matches!(x, '\n')).into_iter().collect(),
                 )),
                 Some('0'..='9') => {
                     s.undo(1);
                     Some(Token::Number("-".to_owned() + &number(s)))
                 }
-                Some(_) => s.fallback(2),
+                Some(_) => {
+                    s.undo(2);
+                    None
+                }
             },
             'a'..='z' | 'A'..='Z' | '_' => {
                 s.undo(1);
@@ -192,7 +190,10 @@ impl Streamable<char> for Token {
                 s.undo(1);
                 Some(Token::Number(number(s)))
             }
-            _ => s.fallback(1),
+            _ => {
+                s.undo(1);
+                None
+            }
         }
     }
 }
@@ -209,8 +210,8 @@ mod tests {
     #[test]
     fn operators() {
         assert_eq!(
-            collect("<=>%.+*!====:;"),
-            vec![LE, GT, Percent, Dot, Plus, Star, NE, EQ, Equals, Colon, Semicolon]
+            collect("<=>%.+*!===:;"),
+            vec![LE, GT, Percent, Dot, Plus, Star, NE, EQ, Colon, Semicolon]
         );
     }
 

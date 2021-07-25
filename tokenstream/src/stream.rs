@@ -6,6 +6,7 @@
  */
 
 use std::collections::VecDeque;
+use std::vec::Vec;
 
 pub struct Stream<'a, T>
 where
@@ -13,14 +14,7 @@ where
 {
     iter: Box<dyn Iterator<Item = T> + 'a>,
     undo: VecDeque<T>,
-    len: usize,
-}
-
-pub trait Streamable<T>: Sized + std::fmt::Debug
-where
-    T: Clone,
-{
-    fn from(s: &mut Stream<T>) -> Option<Self>;
+    cursor: usize,
 }
 
 impl<'a, T> Stream<'a, T>
@@ -31,17 +25,27 @@ where
         Self {
             iter: Box::new(iter),
             undo: VecDeque::new(),
-            len: 0,
+            cursor: 0,
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.undo.len() - self.cursor
+    }
+
     pub fn undo(&mut self, times: usize) {
-        self.len = std::cmp::min(self.len + times, self.undo.len());
+        self.cursor = std::cmp::min(self.cursor + times, self.undo.len());
     }
 
     pub fn commit(&mut self) {
-        self.undo.truncate(self.len);
-        self.len = self.undo.len();
+        self.undo.truncate(self.cursor);
+        self.cursor = self.undo.len();
+    }
+
+    pub fn wrap(&mut self) -> Vec<T> {
+        let read = self.undo.drain(self.cursor..).rev().collect();
+        self.commit();
+        read
     }
 }
 
@@ -51,9 +55,9 @@ where
 {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.len > 0 {
-            self.len -= 1;
-            return Some(self.undo[self.len].clone());
+        if self.cursor > 0 {
+            self.cursor -= 1;
+            return Some(self.undo[self.cursor].clone());
         }
 
         self.iter.next().and_then(|t| {
@@ -73,35 +77,52 @@ mod tests {
         assert_eq!(s.next(), Some('a'));
         assert_eq!(s.next(), Some('b'));
         assert_eq!(s.next(), Some('c'));
+        assert_eq!(s.len(), 3);
         s.undo(2);
+        assert_eq!(s.len(), 1);
         assert_eq!(s.next(), Some('b'));
         assert_eq!(s.next(), Some('c'));
+        assert_eq!(s.len(), 3);
+        assert_eq!(s.wrap(), vec!['a', 'b', 'c']);
     }
 
     #[test]
     fn commit() {
         let mut s = Stream::new("abcd".chars());
+        assert_eq!(s.len(), 0);
         assert_eq!(s.next(), Some('a'));
         assert_eq!(s.next(), Some('b'));
         assert_eq!(s.next(), Some('c'));
+        assert_eq!(s.len(), 3);
         s.undo(1);
-        s.commit();
+        assert_eq!(s.wrap(), vec!['a', 'b']);
+        assert_eq!(s.len(), 0);
         assert_eq!(s.next(), Some('c'));
         assert_eq!(s.next(), Some('d'));
+        assert_eq!(s.len(), 2);
     }
 
     #[test]
     fn overflow() {
         let mut s = Stream::new("ab".chars());
+        assert_eq!(s.len(), 0);
         assert_eq!(s.next(), Some('a'));
         assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.len(), 2);
         assert_eq!(s.next(), None);
+        assert_eq!(s.len(), 2);
         assert_eq!(s.next(), None);
+        assert_eq!(s.len(), 2);
         s.undo(1);
         assert_eq!(s.next(), Some('b'));
+        assert_eq!(s.len(), 2);
         assert_eq!(s.next(), None);
-        s.commit();
+        assert_eq!(s.len(), 2);
+        assert_eq!(s.wrap(), vec!['a', 'b']);
+        assert_eq!(s.len(), 0);
         s.undo(42);
+        assert_eq!(s.len(), 0);
         assert_eq!(s.next(), None);
+        assert_eq!(s.len(), 0);
     }
 }

@@ -5,7 +5,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use super::stream::{Stream, Streamable};
+use crate::Stream;
+
+pub trait Streamable<T>: Sized + std::fmt::Debug
+where
+    T: Clone,
+{
+    fn from(s: &mut Stream<T>) -> Option<Self>;
+}
 
 pub struct Tokenizer<'a, From, To>
 where
