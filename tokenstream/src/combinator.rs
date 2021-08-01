@@ -5,72 +5,99 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+use std::rc::Rc;
+
 use crate::Stream;
 
-pub struct Combinator<From, To>
-where
-    From: Clone,
-{
-    pub f: Box<dyn Fn(&mut Stream<From>) -> Option<To>>,
+pub type Output<To> = Option<Vec<To>>;
+#[macro_export]
+macro_rules! out {
+    () => {
+        None
+    };
+    ($($outputs:expr),*) => {
+        Some(vec![$($outputs),*])
+    };
 }
 
-impl<From, To> Combinator<From, To>
+#[derive(Clone)]
+pub struct Combinator<'a, From, To>
 where
     From: Clone,
 {
-    pub fn new<F: 'static>(f: F) -> Self
+    pub f: Rc<dyn Fn(&mut Stream<From>) -> Output<To> + 'a>,
+}
+
+impl<'a, From, To> Combinator<'a, From, To>
+where
+    From: Clone,
+{
+    pub fn new<F: 'a>(f: F) -> Self
     where
-        F: Fn(&mut Stream<From>) -> Option<To>,
+        F: Fn(&mut Stream<From>) -> Output<To>,
     {
-        Self { f: Box::new(f) }
+        Self { f: Rc::new(f) }
     }
 }
 
-impl<From: 'static, To: 'static> std::ops::Shl for Combinator<From, To>
+impl<'a, From: 'a, To: 'a> std::ops::Shl for &Combinator<'a, From, To>
 where
     From: Clone,
 {
-    type Output = Self;
-    fn shl(self, rhs: Combinator<From, To>) -> Self::Output {
+    type Output = Combinator<'a, From, To>;
+    fn shl(self, rhs: &Combinator<'a, From, To>) -> Self::Output {
+        let lf = self.f.clone();
+        let rf = rhs.f.clone();
         Combinator {
-            f: Box::new(move |s| (self.f)(s).and_then(|x| (rhs.f)(s).and_then(|_| Some(x)))),
+            f: Rc::new(move |s| lf(s).and_then(|x| rf(s).and_then(|_| Some(x)))),
         }
     }
 }
 
-impl<From: 'static, To: 'static> std::ops::Shr for Combinator<From, To>
+impl<'a, From: 'a, To: 'a> std::ops::Shr for &Combinator<'a, From, To>
 where
     From: Clone,
 {
-    type Output = Self;
-    fn shr(self, rhs: Combinator<From, To>) -> Self::Output {
+    type Output = Combinator<'a, From, To>;
+    fn shr(self, rhs: &Combinator<'a, From, To>) -> Self::Output {
+        let lf = self.f.clone();
+        let rf = rhs.f.clone();
         Combinator {
-            f: Box::new(move |s| (self.f)(s).and_then(|_| (rhs.f)(s))),
+            f: Rc::new(move |s| lf(s).and_then(|_| rf(s))),
         }
     }
 }
 
-impl<From: 'static, To: 'static> std::ops::BitOr for Combinator<From, To>
+impl<'a, From: 'a, To: 'a> std::ops::BitOr for &Combinator<'a, From, To>
 where
     From: Clone,
 {
-    type Output = Self;
-    fn bitor(self, rhs: Combinator<From, To>) -> Self::Output {
+    type Output = Combinator<'a, From, To>;
+    fn bitor(self, rhs: &Combinator<'a, From, To>) -> Self::Output {
+        let lf = self.f.clone();
+        let rf = rhs.f.clone();
         Combinator {
-            f: Box::new(move |s| (self.f)(s).or_else(|| (rhs.f)(s))),
+            f: Rc::new(move |s| lf(s).or_else(|| rf(s))),
         }
     }
 }
 
-impl<From: 'static, To: 'static> std::ops::BitAnd for Combinator<From, To>
+impl<'a, From: 'a, To: 'a> std::ops::BitAnd for &Combinator<'a, From, To>
 where
     From: Clone,
 {
-    type Output = Combinator<From, Vec<To>>;
-    fn bitand(self, rhs: Combinator<From, To>) -> Self::Output {
+    type Output = Combinator<'a, From, To>;
+    fn bitand(self, rhs: &Combinator<'a, From, To>) -> Self::Output {
+        let lf = self.f.clone();
+        let rf = rhs.f.clone();
         Combinator {
-            f: Box::new(move |s| {
-                (self.f)(s).and_then(|x| (rhs.f)(s).and_then(|y| Some(vec![x, y])))
+            f: Rc::new(move |s| {
+                lf(s).and_then(|mut x| {
+                    rf(s).and_then(|mut y| {
+                        x.append(&mut y);
+                        Some(x)
+                    })
+                })
             }),
         }
     }

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use crate::{Combinator, Stream, Tokenizer};
+use crate::{Combinator, Output, Stream, Tokenizer};
 
 pub type Lexer<'a, Token> = Tokenizer<'a, char, Token>;
 pub type Parser<'a, Token, Expr> = Tokenizer<'a, Token, Expr>;
@@ -56,7 +56,7 @@ impl<'a, From> Stream<'a, From>
 where
     From: Clone,
 {
-    pub fn run<To>(&mut self, combinator: Combinator<From, To>) -> Option<To> {
+    pub fn run<To>(&mut self, combinator: Combinator<From, To>) -> Output<To> {
         let len = self.len();
         (combinator.f)(self).or_else(|| {
             self.undo(self.len() - len);
