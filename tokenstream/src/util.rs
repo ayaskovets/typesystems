@@ -56,7 +56,7 @@ impl<'a, From> Stream<'a, From>
 where
     From: Clone,
 {
-    pub fn run<To>(&mut self, combinator: Combinator<From, To>) -> Output<To> {
+    pub fn run<To>(&mut self, combinator: &Combinator<From, To>) -> Output<To> {
         let len = self.len();
         (combinator.f)(self).or_else(|| {
             self.undo(self.len() - len);
