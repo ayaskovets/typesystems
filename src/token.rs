@@ -9,52 +9,58 @@ pub use tokenstream::{Stream, Streamable};
 
 fn identifier(s: &mut Stream<char>) -> String {
     let mut ident = String::new();
-    match s.next().unwrap() {
-        'a'..='z' | 'A'..='Z' | '_' => {
-            s.undo(1);
-            ident = s
-                .take(|x| matches!(x, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
-                .into_iter()
-                .collect();
+    if let Some(c) = s.next() {
+        match c {
+            'a'..='z' | 'A'..='Z' | '_' => {
+                s.undo(1);
+                ident = s
+                    .take(|x| matches!(x, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+                    .into_iter()
+                    .collect();
+            }
+            _ => s.undo(1),
         }
-        _ => s.undo(1),
-    }
+    };
     ident
 }
 
 fn number(s: &mut Stream<char>) -> String {
     let mut num = String::new();
-    match s.next().unwrap() {
-        '0'..='9' => {
-            s.undo(1);
-            num = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
+    if let Some(c) = s.next() {
+        match c {
+            '0'..='9' => {
+                s.undo(1);
+                num = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
 
-            match s.next() {
-                Some('.') => {
-                    let fraction: String = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
-                    if !fraction.is_empty() {
-                        num.push('.');
-                        num.push_str(fraction.as_str());
+                match s.next() {
+                    Some('.') => {
+                        let fraction: String =
+                            s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
+                        if !fraction.is_empty() {
+                            num.push('.');
+                            num.push_str(fraction.as_str());
+                        }
                     }
-                }
-                None => (),
-                _ => s.undo(1),
-            };
+                    None => (),
+                    _ => s.undo(1),
+                };
 
-            match s.next() {
-                Some('e') => {
-                    let exponent: String = s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
-                    if !exponent.is_empty() {
-                        num.push('e');
-                        num.push_str(exponent.as_str());
+                match s.next() {
+                    Some('e') => {
+                        let exponent: String =
+                            s.take(|x| matches!(x, '0'..='9')).into_iter().collect();
+                        if !exponent.is_empty() {
+                            num.push('e');
+                            num.push_str(exponent.as_str());
+                        }
                     }
-                }
-                None => (),
-                _ => s.undo(1),
-            };
+                    None => (),
+                    _ => s.undo(1),
+                };
+            }
+            _ => s.undo(1),
         }
-        _ => s.undo(1),
-    }
+    };
     num
 }
 
@@ -120,7 +126,7 @@ fn keyword(s: &str) -> Option<Token> {
 // fixed lexer token tree, a little messy but fast
 impl Streamable<char> for Token {
     fn from(s: &mut Stream<char>) -> Option<Token> {
-        match s.next().unwrap() {
+        s.next().and_then(|c| match c {
             ',' => Some(Token::Comma),
             ':' => Some(Token::Colon),
             ';' => Some(Token::Semicolon),
@@ -194,7 +200,7 @@ impl Streamable<char> for Token {
                 s.undo(1);
                 None
             }
-        }
+        })
     }
 }
 
