@@ -11,8 +11,8 @@ pub use stream::*;
 mod tokenizer;
 pub use tokenizer::*;
 
-mod combinator;
-pub use combinator::*;
+mod parser;
+pub use parser::*;
 
 mod util;
 pub use util::*;
