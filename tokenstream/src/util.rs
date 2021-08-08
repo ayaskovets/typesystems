@@ -5,10 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use crate::{Combinator, Output, Stream, Tokenizer};
-
-pub type Lexer<'a, Token> = Tokenizer<'a, char, Token>;
-pub type Parser<'a, Token, Expr> = Tokenizer<'a, Token, Expr>;
+use crate::{bind, Parser, Stream};
 
 impl<'a, T> Stream<'a, T>
 where
@@ -52,15 +49,83 @@ where
     }
 }
 
-impl<'a, From> Stream<'a, From>
+pub fn satisfy<'a, From: 'a>(f: impl Fn(From) -> bool + 'a) -> Parser<'a, From, From>
 where
     From: Clone,
 {
-    pub fn run<To>(&mut self, combinator: &Combinator<From, To>) -> Output<To> {
-        let len = self.len();
-        (combinator.f)(self).or_else(|| {
-            self.undo(self.len() - len);
-            None
+    Parser::new(move |s: &mut Stream<From>| {
+        s.next().and_then(|x| {
+            if f(x.clone()) {
+                Some(x)
+            } else {
+                s.undo(1);
+                None
+            }
         })
+    })
+}
+
+pub fn some<'a, From: 'a, To: 'a>(p: Parser<'a, From, To>) -> Parser<'a, From, Vec<To>>
+where
+    From: Clone,
+    To: Clone,
+{
+    Parser::new(move |s| {
+        let mut out = Vec::new();
+        while let Some(x) = p.run(s) {
+            out.push(x);
+        }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
+    })
+}
+
+pub fn many<'a, From: 'a, To: 'a>(p: Parser<'a, From, To>) -> Parser<'a, From, Vec<To>>
+where
+    From: Clone,
+    To: Clone,
+{
+    some(p) | Parser::pure(Vec::new())
+}
+
+// infix operators as members for utility
+impl<'a, From: 'a, To: 'a> Parser<'a, From, To>
+where
+    From: Clone,
+    To: Clone,
+{
+    pub fn sep_by<Sep: 'a>(self, p: Parser<'a, From, Sep>) -> Parser<'a, From, Vec<To>>
+    where
+        Sep: Clone,
+    {
+        bind(self.clone(), move |x| {
+            bind(many(p.clone() >> self.clone()), move |xs| {
+                let mut out = vec![x.clone()];
+                out.extend(xs.into_iter());
+                Parser::pure(out)
+            })
+        }) | Parser::pure(Vec::new())
+    }
+
+    pub fn end_by<Sep: 'a>(self, p: Parser<'a, From, Sep>) -> Parser<'a, From, Vec<To>>
+    where
+        Sep: Clone,
+    {
+        many(self << p)
+    }
+
+    pub fn between<ToL: 'a, ToR: 'a>(
+        self,
+        l: Parser<'a, From, ToL>,
+        r: Parser<'a, From, ToR>,
+    ) -> Parser<'a, From, To>
+    where
+        ToL: Clone,
+        ToR: Clone,
+    {
+        l >> self << r
     }
 }
