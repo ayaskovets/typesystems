@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use crate::{bind, Parser, Stream};
+use crate::{Parser, Stream};
 
 impl<'a, T> Stream<'a, T>
 where
@@ -101,13 +101,7 @@ where
     where
         Sep: Clone,
     {
-        bind(self.clone(), move |x| {
-            bind(many(p.clone() >> self.clone()), move |xs| {
-                let mut out = vec![x.clone()];
-                out.extend(xs.into_iter());
-                Parser::pure(out)
-            })
-        }) | Parser::pure(Vec::new())
+        self.clone() & (many(p >> self)) | Parser::pure(Vec::new())
     }
 
     pub fn end_by<Sep: 'a>(self, p: Parser<'a, From, Sep>) -> Parser<'a, From, Vec<To>>

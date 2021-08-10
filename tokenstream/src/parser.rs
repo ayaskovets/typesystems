@@ -13,7 +13,7 @@ where
     From: Clone,
     To: Clone,
 {
-    f: std::rc::Rc<dyn Fn(&mut Stream<'a, From>) -> Option<To> + 'a>,
+    f: std::rc::Rc<dyn Fn(&mut Stream<From>) -> Option<To> + 'a>,
 }
 
 impl<'a, From, To: 'a> Parser<'a, From, To>
@@ -21,18 +21,18 @@ where
     From: Clone,
     To: Clone,
 {
-    pub fn new(f: impl Fn(&mut Stream<'a, From>) -> Option<To> + 'a) -> Self {
+    pub fn new(f: impl Fn(&mut Stream<From>) -> Option<To> + 'a) -> Self {
         Parser {
             f: std::rc::Rc::new(f),
         }
     }
 
-    // Alternative empty
+    // Alternative: empty
     pub fn empty() -> Self {
         Parser::new(move |_| None)
     }
 
-    pub fn run(&self, s: &mut Stream<'a, From>) -> Option<To> {
+    pub fn run(&self, s: &mut Stream<From>) -> Option<To> {
         let state = s.len();
         (self.f)(s).or_else(|| {
             s.undo(s.len() - state);
@@ -46,13 +46,13 @@ where
     From: Clone,
     To: Clone,
 {
-    // Applicative pure
+    // Applicative: pure
     pub fn pure(any: To) -> Self {
         Parser::new(move |_| Some(any.clone()))
     }
 }
 
-// Functor fmap(f, p)
+// Functor: fmap(f, p)
 pub fn fmap<'a, From: 'a, ToA: 'a, ToB: 'a>(
     f: impl Fn(ToA) -> ToB + 'a,
     p: Parser<'a, From, ToA>,
@@ -65,7 +65,7 @@ where
     Parser::new(move |s| p.run(s).and_then(|a| Some(f(a))))
 }
 
-// Applicative l << r
+// Applicative: l << r
 impl<'a, From: 'a, ToL: 'a, ToR: 'a> std::ops::Shl<Parser<'a, From, ToR>> for Parser<'a, From, ToL>
 where
     From: Clone,
@@ -78,7 +78,7 @@ where
     }
 }
 
-// Applicative l >> r
+// Applicative: l >> r
 impl<'a, From: 'a, ToL: 'a, ToR: 'a> std::ops::Shr<Parser<'a, From, ToR>> for Parser<'a, From, ToL>
 where
     From: Clone,
@@ -91,7 +91,7 @@ where
     }
 }
 
-// Alternative l | r
+// Alternative: l | r
 impl<'a, From: 'a, To: 'a> std::ops::BitOr<Parser<'a, From, To>> for Parser<'a, From, To>
 where
     From: Clone,
@@ -103,7 +103,7 @@ where
     }
 }
 
-// Monad bind(p, f)
+// Monad: bind(p, f)
 pub fn bind<'a, From: 'a, ToA: 'a, ToB: 'a>(
     p: Parser<'a, From, ToA>,
     f: impl Fn(ToA) -> Parser<'a, From, ToB> + 'a,
@@ -114,4 +114,56 @@ where
     ToB: Clone,
 {
     Parser::new(move |s| p.run(s).and_then(|a| f(a).run(s)))
+}
+
+// Monadic bind for merging results: l & r
+impl<'a, From: 'a, To: 'a> std::ops::BitAnd<Parser<'a, From, Vec<To>>> for Parser<'a, From, Vec<To>>
+where
+    From: Clone,
+    To: Clone,
+{
+    type Output = Parser<'a, From, Vec<To>>;
+    fn bitand(self, rhs: Parser<'a, From, Vec<To>>) -> Self::Output {
+        bind(self, move |xs| {
+            bind(rhs.clone(), move |ys| {
+                let mut out = xs.clone();
+                out.extend(ys);
+                Parser::pure(out)
+            })
+        })
+    }
+}
+
+impl<'a, From: 'a, To: 'a> std::ops::BitAnd<Parser<'a, From, Vec<To>>> for Parser<'a, From, To>
+where
+    From: Clone,
+    To: Clone,
+{
+    type Output = Parser<'a, From, Vec<To>>;
+    fn bitand(self, rhs: Parser<'a, From, Vec<To>>) -> Self::Output {
+        bind(self, move |x| {
+            bind(rhs.clone(), move |xs| {
+                let mut out = vec![x.clone()];
+                out.extend(xs);
+                Parser::pure(out)
+            })
+        })
+    }
+}
+
+impl<'a, From: 'a, To: 'a> std::ops::BitAnd<Parser<'a, From, To>> for Parser<'a, From, Vec<To>>
+where
+    From: Clone,
+    To: Clone,
+{
+    type Output = Parser<'a, From, Vec<To>>;
+    fn bitand(self, rhs: Parser<'a, From, To>) -> Self::Output {
+        bind(self, move |xs| {
+            bind(rhs.clone(), move |x| {
+                let mut out = xs.clone();
+                out.push(x);
+                Parser::pure(out)
+            })
+        })
+    }
 }
