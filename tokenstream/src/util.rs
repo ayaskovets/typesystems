@@ -97,11 +97,18 @@ where
     From: Clone,
     To: Clone,
 {
+    pub fn sep_by1<Sep: 'a>(self, p: Parser<'a, From, Sep>) -> Parser<'a, From, Vec<To>>
+    where
+        Sep: Clone,
+    {
+        self.clone() & (many(p >> self))
+    }
+
     pub fn sep_by<Sep: 'a>(self, p: Parser<'a, From, Sep>) -> Parser<'a, From, Vec<To>>
     where
         Sep: Clone,
     {
-        self.clone() & (many(p >> self)) | Parser::pure(Vec::new())
+        self.sep_by1(p) | Parser::pure(Vec::new())
     }
 
     pub fn end_by<Sep: 'a>(self, p: Parser<'a, From, Sep>) -> Parser<'a, From, Vec<To>>

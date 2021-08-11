@@ -5,14 +5,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+mod parser;
+pub use parser::*;
+
 mod stream;
 pub use stream::*;
 
 mod tokenizer;
 pub use tokenizer::*;
-
-mod parser;
-pub use parser::*;
 
 mod util;
 pub use util::*;
