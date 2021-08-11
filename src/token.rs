@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-pub use tokenstream::{Stream, Streamable};
+use tokenstream::{Stream, Streamable};
 
 fn identifier(s: &mut Stream<char>) -> String {
     let mut ident = String::new();
@@ -74,6 +74,8 @@ pub enum Token {
     Rparen,
     Lbracket,
     Rbracket,
+    Lbrace,
+    Rbrace,
     Plus,
     Star,
     Slash,
@@ -135,6 +137,8 @@ impl Streamable<char> for Token {
             ')' => Some(Token::Rparen),
             '[' => Some(Token::Lbracket),
             ']' => Some(Token::Rbracket),
+            '{' => Some(Token::Lbrace),
+            '}' => Some(Token::Rbrace),
             '+' => Some(Token::Plus),
             '*' => Some(Token::Star),
             '/' => Some(Token::Slash),
