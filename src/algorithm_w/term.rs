@@ -24,7 +24,7 @@ fn simple_term() -> Parser<'static, Token, Term> {
     let p_call = bind(fmap(Box::new, simple_term()), |f| {
         fmap(
             move |args| Term::Call(f.clone(), args),
-            parens(spaced(comma_list1(spaced(fmap(Box::new, term()))))),
+            many_space() >> parens(spaced(comma_list1(spaced(fmap(Box::new, term()))))),
         )
     });
 
@@ -50,7 +50,7 @@ pub fn term() -> Parser<'static, Token, Term> {
         |idents| {
             fmap(
                 move |term| Term::Fn(idents.clone(), Box::new(term)),
-                spaced(term()),
+                many_space() >> term(),
             )
         },
     );
