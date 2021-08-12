@@ -109,7 +109,6 @@ pub enum Token {
 
 fn keyword(s: &str) -> Option<Token> {
     match s {
-        "fn" => Some(Token::Fn),
         "forall" => Some(Token::Forall),
         "in" => Some(Token::In),
         "let" => Some(Token::Let),
@@ -143,6 +142,7 @@ impl Streamable<char> for Token {
             '*' => Some(Token::Star),
             '/' => Some(Token::Slash),
             '%' => Some(Token::Percent),
+            '\\' => Some(Token::Fn),
             c1 @ ('<' | '>' | '=' | '!') => {
                 let c1_token = match c1 {
                     '<' => Some(Token::LT),
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn keywords() {
         assert_eq!(
-            collect("let->fn forall in"),
+            collect(r"let->\ forall in"),
             vec![Let, Arrow, Fn, Spacing, Forall, Spacing, In]
         );
         assert_eq!(
