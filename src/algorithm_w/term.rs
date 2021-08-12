@@ -7,8 +7,7 @@
 
 use tokenstream::{bind, fmap, Parser};
 
-use crate::token::Token;
-use crate::util::{comma_list1, ident, many_space, parens, spaced, token};
+use crate::{comma_list, ident, lazy, many_space, parens, spaced, token, Token};
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Term {
@@ -20,15 +19,19 @@ pub enum Term {
 
 fn simple_term() -> Parser<'static, Token, Term> {
     let p_var = fmap(Term::Var, ident());
-    let p_term_parens = parens(spaced(term()));
-    let p_call = bind(fmap(Box::new, simple_term()), |f| {
-        fmap(
-            move |args| Term::Call(f.clone(), args),
-            many_space() >> parens(spaced(comma_list1(spaced(fmap(Box::new, term()))))),
-        )
-    });
+    let p_term_parens = lazy!(parens(spaced(term())));
 
-    p_var | p_term_parens | p_call
+    fn args() -> Parser<'static, Token, Vec<Box<Term>>> {
+        parens(spaced(comma_list(spaced(fmap(Box::new, term())))))
+    }
+
+    bind(p_var, move |f| {
+        let _f = f.clone();
+        fmap(move |args| Term::Call(Box::new(f.clone()), args), args()) | Parser::pure(_f)
+    }) | bind(p_term_parens, move |f| {
+        let _f = f.clone();
+        fmap(move |args| Term::Call(Box::new(f.clone()), args), args()) | Parser::pure(_f)
+    })
 }
 
 pub fn term() -> Parser<'static, Token, Term> {
@@ -46,7 +49,7 @@ pub fn term() -> Parser<'static, Token, Term> {
         },
     );
     let p_fn_arrow = bind(
-        token(Token::Fn) >> spaced(ident().sep_by1(token(Token::Spacing))) << token(Token::Arrow),
+        token(Token::Fn) >> spaced(ident().sep_by1(many_space())) << token(Token::Arrow),
         |idents| {
             fmap(
                 move |term| Term::Fn(idents.clone(), Box::new(term)),

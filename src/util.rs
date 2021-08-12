@@ -19,6 +19,13 @@ macro_rules! extract {
     };
 }
 
+#[macro_export]
+macro_rules! lazy {
+    ($parser:expr) => {
+        Parser::new(move |s| $parser.run(s) )
+    };
+}
+
 pub fn token(t: Token) -> Parser<'static, Token, Token> {
     satisfy(move |x| x == t)
 }
@@ -65,11 +72,11 @@ where
 {
     p.between(token(Token::Lbracket), token(Token::Rbracket))
 }
-pub fn comma_list1<'a, To: 'a>(p: Parser<'a, Token, To>) -> Parser<'a, Token, Vec<To>>
+pub fn comma_list<'a, To: 'a>(p: Parser<'a, Token, To>) -> Parser<'a, Token, Vec<To>>
 where
     To: Clone,
 {
-    p.sep_by1(token(Token::Comma))
+    p.sep_by(token(Token::Comma))
 }
 pub fn spaced_list1<'a, To: 'a>(p: Parser<'a, Token, To>) -> Parser<'a, Token, Vec<To>>
 where
