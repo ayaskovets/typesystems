@@ -5,13 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-// mod expr;
-// pub use expr::*;
+mod term;
+pub use term::*;
 
-// mod r#type;
-// pub use r#type::*;
+mod ty;
+pub use ty::*;
 
-mod token;
-pub use token::*;
-
-pub use parser_stream::*;
+mod infer;
+pub use infer::*;
