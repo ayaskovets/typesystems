@@ -22,7 +22,7 @@ macro_rules! extract {
 #[macro_export]
 macro_rules! lazy {
     ($parser:expr) => {
-        Parser::new(move |s| $parser.run(s) )
+        Parser::new(move |s| $parser.run(s))
     };
 }
 
@@ -46,6 +46,15 @@ pub fn many_space() -> Parser<'static, Token, ()> {
 }
 pub fn some_space() -> Parser<'static, Token, ()> {
     fmap(|_| {}, some(token(Token::Spacing) | token(Token::Newline)))
+}
+pub fn eof() -> Parser<'static, Token, ()> {
+    Parser::new(|s| {
+        if let Some(_) = s.next() {
+            None
+        } else {
+            Some(())
+        }
+    })
 }
 
 pub fn spaced<'a, To: 'a>(p: Parser<'a, Token, To>) -> Parser<'a, Token, To>
@@ -78,9 +87,9 @@ where
 {
     p.sep_by(token(Token::Comma))
 }
-pub fn spaced_list1<'a, To: 'a>(p: Parser<'a, Token, To>) -> Parser<'a, Token, Vec<To>>
+pub fn comma_list1<'a, To: 'a>(p: Parser<'a, Token, To>) -> Parser<'a, Token, Vec<To>>
 where
     To: Clone,
 {
-    p.sep_by1(some_space())
+    p.sep_by1(token(Token::Comma))
 }
