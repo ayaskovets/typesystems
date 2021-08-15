@@ -12,7 +12,7 @@ use crate::{comma_list, eof, ident, lazy, many_space, parens, spaced, token, Tok
 #[derive(PartialEq, Clone, Debug)]
 pub enum Term {
     Var(String),
-    Call(Box<Term>, Vec<Box<Term>>),
+    Call(Box<Term>, Vec<Term>),
     Fn(Vec<String>, Box<Term>),
     Let(String, Box<Term>, Box<Term>),
 }
@@ -21,8 +21,8 @@ fn simple_term() -> Parser<'static, Token, Term> {
     let p_var = fmap(Term::Var, ident());
     let p_term_parens = lazy!(parens(spaced(term())));
 
-    fn args() -> Parser<'static, Token, Vec<Box<Term>>> {
-        parens(spaced(comma_list(spaced(fmap(Box::new, term())))))
+    fn args() -> Parser<'static, Token, Vec<Term>> {
+        parens(spaced(comma_list(spaced(term()))))
     }
 
     bind(
@@ -107,10 +107,7 @@ mod tests {
             collect("(fn)((a), b)"),
             Some(Call(
                 Box::new(Var(String::from("fn"))),
-                vec![
-                    Box::new(Var(String::from("a"))),
-                    Box::new(Var(String::from("b")))
-                ]
+                vec![Var(String::from("a")), Var(String::from("b"))]
             ))
         );
         assert_eq!(
@@ -118,11 +115,11 @@ mod tests {
             Some(Call(
                 Box::new(Var(String::from("f"))),
                 vec![
-                    Box::new(Var(String::from("a"))),
-                    Box::new(Call(
+                    Var(String::from("a")),
+                    Call(
                         Box::new(Var(String::from("g"))),
-                        vec![Box::new(Var(String::from("b")))]
-                    ))
+                        vec![Var(String::from("b"))]
+                    )
                 ]
             ))
         );
@@ -131,9 +128,9 @@ mod tests {
             Some(Call(
                 Box::new(Call(
                     Box::new(Var(String::from("fn"))),
-                    vec![Box::new(Var(String::from("a")))]
+                    vec![Var(String::from("a"))]
                 )),
-                vec![Box::new(Var(String::from("b")))]
+                vec![Var(String::from("b"))]
             ))
         );
         assert_eq!(
@@ -141,12 +138,12 @@ mod tests {
             Some(Call(
                 Box::new(Call(
                     Box::new(Var(String::from("f"))),
-                    vec![Box::new(Var(String::from("a")))]
+                    vec![Var(String::from("a"))]
                 )),
-                vec![Box::new(Call(
+                vec![Call(
                     Box::new(Var(String::from("g"))),
-                    vec![Box::new(Var(String::from("b")))]
-                ))]
+                    vec![Var(String::from("b"))]
+                )]
             ))
         );
     }
@@ -172,18 +169,15 @@ mod tests {
                     vec![String::from("f"), String::from("g"), String::from("x")],
                     Box::new(Call(
                         Box::new(Var(String::from("f"))),
-                        vec![Box::new(Call(
+                        vec![Call(
                             Box::new(Var(String::from("g"))),
-                            vec![Box::new(Var(String::from("x")))]
-                        ))]
+                            vec![Var(String::from("x"))]
+                        )]
                     )),
                 )),
                 Box::new(Call(
                     Box::new(Var(String::from("c"))),
-                    vec![
-                        Box::new(Var(String::from("f"))),
-                        Box::new(Var(String::from("g")))
-                    ]
+                    vec![Var(String::from("f")), Var(String::from("g"))]
                 ))
             ))
         );
@@ -197,10 +191,7 @@ mod tests {
                     Box::new(Var(String::from("y"))),
                     Box::new(Call(
                         Box::new(Var(String::from("f"))),
-                        vec![
-                            Box::new(Var(String::from("x"))),
-                            Box::new(Var(String::from("y")))
-                        ]
+                        vec![Var(String::from("x")), Var(String::from("y"))]
                     ))
                 ))
             ))
