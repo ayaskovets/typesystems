@@ -90,7 +90,7 @@ pub enum Token {
     Spacing,
     Newline,
     Arrow,
-    Fn,
+    Backslash,
     Forall,
     In,
     Let,
@@ -142,7 +142,7 @@ impl Streamable<char> for Token {
             '*' => Some(Token::Star),
             '/' => Some(Token::Slash),
             '%' => Some(Token::Percent),
-            '\\' => Some(Token::Fn),
+            '\\' => Some(Token::Backslash),
             c1 @ ('<' | '>' | '=' | '!') => {
                 let c1_token = match c1 {
                     '<' => Some(Token::LT),
@@ -242,7 +242,7 @@ mod tests {
     fn keywords() {
         assert_eq!(
             collect(r"let->\ forall in"),
-            vec![Let, Arrow, Fn, Spacing, Forall, Spacing, In]
+            vec![Let, Arrow, Backslash, Spacing, Forall, Spacing, In]
         );
         assert_eq!(
             collect("if a or b"),

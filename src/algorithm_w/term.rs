@@ -13,8 +13,8 @@ use crate::{comma_list, eof, ident, lazy, many_space, parens, spaced, token, Tok
 pub enum Term {
     Var(String),
     Let(String, Box<Term>, Box<Term>),
-    Fn(Vec<String>, Box<Term>),
-    Call(Box<Term>, Vec<Term>),
+    Abs(Vec<String>, Box<Term>),
+    App(Box<Term>, Vec<Term>),
 }
 
 impl std::str::FromStr for Term {
@@ -35,7 +35,7 @@ impl std::fmt::Display for Term {
             Term::Let(name, assign, body) => {
                 write!(fmt, "let {} = {} in {}", name, assign, body)
             }
-            Term::Fn(args, body) => {
+            Term::Abs(args, body) => {
                 write!(fmt, "\\")?;
                 if !args.is_empty() {
                     write!(fmt, "{}", args[0])?;
@@ -45,7 +45,7 @@ impl std::fmt::Display for Term {
                 }
                 write!(fmt, " -> {}", body)
             }
-            Term::Call(f, args) => {
+            Term::App(f, args) => {
                 write!(fmt, "{}(", f)?;
                 if !args.is_empty() {
                     write!(fmt, "{}", args[0])?;
@@ -70,14 +70,14 @@ fn simple_term() -> Parser<'static, Token, Term> {
     bind(
         bind(p_var, |f| {
             let _f = f.clone();
-            fmap(move |args| Term::Call(Box::new(f.clone()), args), args()) | Parser::pure(_f)
+            fmap(move |args| Term::App(Box::new(f.clone()), args), args()) | Parser::pure(_f)
         }) | bind(p_term_parens, |f| {
             let _f = f.clone();
-            fmap(move |args| Term::Call(Box::new(f.clone()), args), args()) | Parser::pure(_f)
+            fmap(move |args| Term::App(Box::new(f.clone()), args), args()) | Parser::pure(_f)
         }),
         |call| {
             let _call = call.clone();
-            fmap(move |args| Term::Call(Box::new(call.clone()), args), args()) | Parser::pure(_call)
+            fmap(move |args| Term::App(Box::new(call.clone()), args), args()) | Parser::pure(_call)
         },
     )
 }
@@ -96,10 +96,10 @@ fn term() -> Parser<'static, Token, Term> {
         },
     );
     let p_fn = bind(
-        token(Token::Fn) >> spaced(ident().sep_by1(many_space())) << token(Token::Arrow),
+        token(Token::Backslash) >> spaced(ident().sep_by1(many_space())) << token(Token::Arrow),
         |args| {
             fmap(
-                move |body| Term::Fn(args.clone(), Box::new(body)),
+                move |body| Term::Abs(args.clone(), Box::new(body)),
                 many_space() >> term(),
             )
         },
@@ -142,17 +142,17 @@ mod tests {
             collect(r"let c = \f g x -> f(g(x)) in c(f, g)"),
             Some(Let(
                 String::from("c"),
-                Box::new(Fn(
+                Box::new(Abs(
                     vec![String::from("f"), String::from("g"), String::from("x")],
-                    Box::new(Call(
+                    Box::new(App(
                         Box::new(Var(String::from("f"))),
-                        vec![Call(
+                        vec![App(
                             Box::new(Var(String::from("g"))),
                             vec![Var(String::from("x"))]
                         )]
                     )),
                 )),
-                Box::new(Call(
+                Box::new(App(
                     Box::new(Var(String::from("c"))),
                     vec![Var(String::from("f")), Var(String::from("g"))]
                 ))
@@ -166,7 +166,7 @@ mod tests {
                 Box::new(Let(
                     String::from("b"),
                     Box::new(Var(String::from("y"))),
-                    Box::new(Call(
+                    Box::new(App(
                         Box::new(Var(String::from("f"))),
                         vec![Var(String::from("x")), Var(String::from("y"))]
                     ))
@@ -179,7 +179,7 @@ mod tests {
     fn r#fn() {
         assert_eq!(
             collect(r"\x y -> x"),
-            Some(Fn(
+            Some(Abs(
                 vec![String::from("x"), String::from("y")],
                 Box::new(Var(String::from("x")))
             ))
@@ -190,18 +190,18 @@ mod tests {
     fn call() {
         assert_eq!(
             collect("(fn)((a), b)"),
-            Some(Call(
+            Some(App(
                 Box::new(Var(String::from("fn"))),
                 vec![Var(String::from("a")), Var(String::from("b"))]
             ))
         );
         assert_eq!(
             collect("(f)(a, g(b))"),
-            Some(Call(
+            Some(App(
                 Box::new(Var(String::from("f"))),
                 vec![
                     Var(String::from("a")),
-                    Call(
+                    App(
                         Box::new(Var(String::from("g"))),
                         vec![Var(String::from("b"))]
                     )
@@ -210,8 +210,8 @@ mod tests {
         );
         assert_eq!(
             collect("((((fn(a)))((b))))"),
-            Some(Call(
-                Box::new(Call(
+            Some(App(
+                Box::new(App(
                     Box::new(Var(String::from("fn"))),
                     vec![Var(String::from("a"))]
                 )),
@@ -220,12 +220,12 @@ mod tests {
         );
         assert_eq!(
             collect("f(a)(g(b))"),
-            Some(Call(
-                Box::new(Call(
+            Some(App(
+                Box::new(App(
                     Box::new(Var(String::from("f"))),
                     vec![Var(String::from("a"))]
                 )),
-                vec![Call(
+                vec![App(
                     Box::new(Var(String::from("g"))),
                     vec![Var(String::from("b"))]
                 )]
