@@ -36,22 +36,22 @@ impl std::fmt::Display for Term {
                 write!(fmt, "let {} = {} in {}", name, assign, body)
             }
             Term::Fn(args, body) => {
-                write!(fmt, "\\");
+                write!(fmt, "\\")?;
                 if !args.is_empty() {
-                    write!(fmt, "{}", args[0]);
+                    write!(fmt, "{}", args[0])?;
                 }
                 for i in 1..args.len() {
-                    write!(fmt, " {}", args[i]);
+                    write!(fmt, " {}", args[i])?;
                 }
                 write!(fmt, " -> {}", body)
             }
             Term::Call(f, args) => {
-                write!(fmt, "{}(", f);
+                write!(fmt, "{}(", f)?;
                 if !args.is_empty() {
-                    write!(fmt, "{}", args[0]);
+                    write!(fmt, "{}", args[0])?;
                 }
                 for i in 1..args.len() {
-                    write!(fmt, ", {}", args[i]);
+                    write!(fmt, ", {}", args[i])?;
                 }
                 write!(fmt, ")")
             }
