@@ -47,9 +47,14 @@ impl std::fmt::Display for Ty {
                     0 => {
                         write!(fmt, "() -> ")?;
                     }
-                    1 => {
-                        write!(fmt, "{} -> ", init[0])?;
-                    }
+                    1 => match init[0] {
+                        Ty::Const(_) | Ty::App(_, _) => {
+                            write!(fmt, "{} -> ", init[0])?;
+                        }
+                        _ => {
+                            write!(fmt, "({}) -> ", init[0])?;
+                        }
+                    },
                     len @ _ => {
                         write!(fmt, "({}", init[0])?;
                         for i in 1..len {
