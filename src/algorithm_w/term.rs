@@ -5,16 +5,58 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-use tokenstream::{bind, fmap, Parser};
+use tokenstream::{bind, fmap, Parser, Stream, Tokenizer};
 
 use crate::{comma_list, eof, ident, lazy, many_space, parens, spaced, token, Token};
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Term {
     Var(String),
-    Call(Box<Term>, Vec<Term>),
-    Fn(Vec<String>, Box<Term>),
     Let(String, Box<Term>, Box<Term>),
+    Fn(Vec<String>, Box<Term>),
+    Call(Box<Term>, Vec<Term>),
+}
+
+impl std::str::FromStr for Term {
+    type Err = ();
+    fn from_str(s: &str) -> std::result::Result<Self, <Self as std::str::FromStr>::Err> {
+        let mut lexer = Stream::new(Tokenizer::new(s.chars()));
+        let parser = term() << eof();
+        parser.run(&mut lexer).ok_or(())
+    }
+}
+
+impl std::fmt::Display for Term {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Term::Var(name) => {
+                write!(fmt, "{}", name)
+            }
+            Term::Let(name, assign, body) => {
+                write!(fmt, "let {} = {} in {}", name, assign, body)
+            }
+            Term::Fn(args, body) => {
+                write!(fmt, "\\");
+                if !args.is_empty() {
+                    write!(fmt, "{}", args[0]);
+                }
+                for i in 1..args.len() {
+                    write!(fmt, " {}", args[i]);
+                }
+                write!(fmt, " -> {}", body)
+            }
+            Term::Call(f, args) => {
+                write!(fmt, "{}(", f);
+                if !args.is_empty() {
+                    write!(fmt, "{}", args[0]);
+                }
+                for i in 1..args.len() {
+                    write!(fmt, ", {}", args[i]);
+                }
+                write!(fmt, ")")
+            }
+        }
+    }
 }
 
 fn simple_term() -> Parser<'static, Token, Term> {
@@ -26,10 +68,10 @@ fn simple_term() -> Parser<'static, Token, Term> {
     }
 
     bind(
-        bind(p_var, move |f| {
+        bind(p_var, |f| {
             let _f = f.clone();
             fmap(move |args| Term::Call(Box::new(f.clone()), args), args()) | Parser::pure(_f)
-        }) | bind(p_term_parens, move |f| {
+        }) | bind(p_term_parens, |f| {
             let _f = f.clone();
             fmap(move |args| Term::Call(Box::new(f.clone()), args), args()) | Parser::pure(_f)
         }),
@@ -41,46 +83,39 @@ fn simple_term() -> Parser<'static, Token, Term> {
 }
 
 fn term() -> Parser<'static, Token, Term> {
-    let p_let_in = bind(
+    let p_let = bind(
         token(Token::Let) >> spaced(ident()) << token(Token::Equals),
-        |ident| {
+        |name| {
             bind(spaced(term()) << token(Token::In), move |assign| {
-                let ident = ident.clone();
+                let name = name.clone();
                 fmap(
-                    move |term| Term::Let(ident.clone(), Box::new(assign.clone()), Box::new(term)),
+                    move |body| Term::Let(name.clone(), Box::new(assign.clone()), Box::new(body)),
                     many_space() >> term(),
                 )
             })
         },
     );
-    let p_fn_arrow = bind(
+    let p_fn = bind(
         token(Token::Fn) >> spaced(ident().sep_by1(many_space())) << token(Token::Arrow),
-        |idents| {
+        |args| {
             fmap(
-                move |term| Term::Fn(idents.clone(), Box::new(term)),
+                move |body| Term::Fn(args.clone(), Box::new(body)),
                 many_space() >> term(),
             )
         },
     );
 
-    lazy!(simple_term()) | p_let_in | p_fn_arrow
-}
-
-pub fn term_eof() -> Parser<'static, Token, Term> {
-    term() << eof()
+    p_let | p_fn | simple_term()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{term_eof, Term, Term::*};
-    use tokenstream::{Stream, Tokenizer};
+    use super::{Term, Term::*};
+
+    use std::str::FromStr;
 
     fn collect(s: &str) -> Option<Term> {
-        let lexer = Tokenizer::new(s.chars());
-        let mut lexer_stream = Stream::new(lexer);
-        let parser = term_eof();
-
-        parser.run(&mut lexer_stream)
+        Term::from_str(s).ok()
     }
 
     #[test]
@@ -99,6 +134,56 @@ mod tests {
     fn var() {
         assert_eq!(collect("a"), Some(Var(String::from("a"))));
         assert_eq!(collect("(((a)))"), Some(Var(String::from("a"))));
+    }
+
+    #[test]
+    fn let_in() {
+        assert_eq!(
+            collect(r"let c = \f g x -> f(g(x)) in c(f, g)"),
+            Some(Let(
+                String::from("c"),
+                Box::new(Fn(
+                    vec![String::from("f"), String::from("g"), String::from("x")],
+                    Box::new(Call(
+                        Box::new(Var(String::from("f"))),
+                        vec![Call(
+                            Box::new(Var(String::from("g"))),
+                            vec![Var(String::from("x"))]
+                        )]
+                    )),
+                )),
+                Box::new(Call(
+                    Box::new(Var(String::from("c"))),
+                    vec![Var(String::from("f")), Var(String::from("g"))]
+                ))
+            ))
+        );
+        assert_eq!(
+            collect("let a = x in let b = y in f(x, y)"),
+            Some(Let(
+                String::from("a"),
+                Box::new(Var(String::from("x"))),
+                Box::new(Let(
+                    String::from("b"),
+                    Box::new(Var(String::from("y"))),
+                    Box::new(Call(
+                        Box::new(Var(String::from("f"))),
+                        vec![Var(String::from("x")), Var(String::from("y"))]
+                    ))
+                ))
+            ))
+        )
+    }
+
+    #[test]
+    fn r#fn() {
+        assert_eq!(
+            collect(r"\x y -> x"),
+            Some(Fn(
+                vec![String::from("x"), String::from("y")],
+                Box::new(Var(String::from("x")))
+            ))
+        );
     }
 
     #[test]
@@ -146,55 +231,5 @@ mod tests {
                 )]
             ))
         );
-    }
-
-    #[test]
-    fn f() {
-        assert_eq!(
-            collect(r"\x y -> x"),
-            Some(Fn(
-                vec![String::from("x"), String::from("y")],
-                Box::new(Var(String::from("x")))
-            ))
-        );
-    }
-
-    #[test]
-    fn let_in() {
-        assert_eq!(
-            collect(r"let c = \f g x -> f(g(x)) in c(f, g)"),
-            Some(Let(
-                String::from("c"),
-                Box::new(Fn(
-                    vec![String::from("f"), String::from("g"), String::from("x")],
-                    Box::new(Call(
-                        Box::new(Var(String::from("f"))),
-                        vec![Call(
-                            Box::new(Var(String::from("g"))),
-                            vec![Var(String::from("x"))]
-                        )]
-                    )),
-                )),
-                Box::new(Call(
-                    Box::new(Var(String::from("c"))),
-                    vec![Var(String::from("f")), Var(String::from("g"))]
-                ))
-            ))
-        );
-        assert_eq!(
-            collect("let a = x in let b = y in f(x, y)"),
-            Some(Let(
-                String::from("a"),
-                Box::new(Var(String::from("x"))),
-                Box::new(Let(
-                    String::from("b"),
-                    Box::new(Var(String::from("y"))),
-                    Box::new(Call(
-                        Box::new(Var(String::from("f"))),
-                        vec![Var(String::from("x")), Var(String::from("y"))]
-                    ))
-                ))
-            ))
-        )
     }
 }
