@@ -157,7 +157,7 @@ impl Streamable<char> for Token {
                         '>' => Some(Token::GE),
                         '=' => Some(Token::EQ),
                         '!' => Some(Token::NE),
-                        _ => unreachable!(),
+                        _ => unreachable!("All the cases were handled"),
                     },
                     Some(_) => {
                         s.undo(1);
