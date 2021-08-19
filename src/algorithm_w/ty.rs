@@ -167,7 +167,12 @@ mod tests {
     #[test]
     fn type_const() {
         assert_eq!(collect("int"), Some(Const(String::from("int"))));
+        assert_eq!(format!("{}", collect("int").unwrap()), String::from("int"));
         assert_eq!(collect("((int ) )"), Some(Const(String::from("int"))));
+        assert_eq!(
+            format!("{}", collect("((int ) )").unwrap()),
+            String::from("int")
+        );
     }
 
     #[test]
@@ -175,6 +180,10 @@ mod tests {
         assert_eq!(
             collect("() -> b"),
             Some(Arrow(vec![], Box::new(Const(String::from("b")))))
+        );
+        assert_eq!(
+            format!("{}", collect("() -> b").unwrap()),
+            String::from("() -> b")
         );
         assert_eq!(
             collect("() -> a -> b"),
@@ -187,11 +196,19 @@ mod tests {
             ))
         );
         assert_eq!(
+            format!("{}", collect("() -> a -> b").unwrap()),
+            String::from("() -> a -> b")
+        );
+        assert_eq!(
             collect("(( () -> a ) -> b)"),
             Some(Arrow(
                 vec![Arrow(vec![], Box::new(Const(String::from("a"))))],
                 Box::new(Const(String::from("b")))
             ))
+        );
+        assert_eq!(
+            format!("{}", collect("(( () -> a ) -> b)").unwrap()),
+            String::from("(() -> a) -> b")
         );
         assert_eq!(
             collect("a -> ( a , b ) -> b"),
@@ -202,6 +219,10 @@ mod tests {
                     Box::new(Const(String::from("b")))
                 ))
             ))
+        );
+        assert_eq!(
+            format!("{}", collect("a -> ( a , b ) -> b").unwrap()),
+            String::from("a -> (a, b) -> b")
         );
     }
 
@@ -215,11 +236,19 @@ mod tests {
             ))
         );
         assert_eq!(
+            format!("{}", collect("t[a]").unwrap()),
+            String::from("t[a]")
+        );
+        assert_eq!(
             collect("t[ a , ( b ) ]"),
             Some(App(
                 Box::new(Const(String::from("t"))),
                 vec![Const(String::from("a")), Const(String::from("b"))]
             ))
+        );
+        assert_eq!(
+            format!("{}", collect("t[ a , ( b ) ]").unwrap()),
+            String::from("t[a, b]")
         );
         assert_eq!(
             collect("t[() -> a, b[(c, d) -> c]]"),
@@ -236,6 +265,10 @@ mod tests {
                     )
                 ]
             ))
+        );
+        assert_eq!(
+            format!("{}", collect("t[() -> a, b[(c, d) -> c]]").unwrap()),
+            String::from("t[() -> a, b[(c, d) -> c]]")
         );
     }
 
@@ -256,6 +289,10 @@ mod tests {
                     Box::new(Const(String::from("a")))
                 ))
             ))
+        );
+        assert_eq!(
+            format!("{}", collect("forall[a, b] (a -> b, c) -> a").unwrap()),
+            String::from("forall[a, b] (a -> b, c) -> a")
         );
     }
 }
