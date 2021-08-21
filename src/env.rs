@@ -10,6 +10,7 @@ use std::collections::HashMap;
 pub type Id = usize;
 pub type Level = isize;
 
+#[derive(Clone)]
 pub struct Gen<T>
 where
     T: From<(Id, Option<Level>)>,
@@ -40,12 +41,12 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct Env<T>
 where
     T: From<(Id, Option<Level>)>,
 {
     env: HashMap<String, T>,
-    pub gen: Gen<T>,
 }
 
 impl<T> Env<T>
@@ -55,24 +56,19 @@ where
     pub fn new() -> Self {
         Env {
             env: HashMap::new(),
-            gen: Gen::new(),
         }
     }
 
-    pub fn insert(&mut self, k: &str, v: T) {
-        self.env.insert(k.to_owned(), v.into());
+    pub fn insert(&mut self, k: &str, v: T) -> Option<T> {
+        self.env.insert(k.to_owned(), v.into())
     }
 
-    pub fn remove(&mut self, k: &str) {
-        self.env.remove(k);
+    pub fn remove(&mut self, k: &str) -> Option<T> {
+        self.env.remove(k)
     }
 
     pub fn lookup(&self, k: &str) -> Option<&T> {
         self.env.get(k)
-    }
-
-    pub fn lookup_mut(&mut self, k: &str) -> Option<&mut T> {
-        self.env.get_mut(k)
     }
 
     pub fn clear(&mut self) {
