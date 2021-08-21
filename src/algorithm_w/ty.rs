@@ -23,11 +23,13 @@ pub enum Ty {
 }
 
 impl std::str::FromStr for Ty {
-    type Err = ();
+    type Err = String;
     fn from_str(s: &str) -> std::result::Result<Self, <Self as std::str::FromStr>::Err> {
         let mut lexer = Stream::new(Tokenizer::new(s.chars()));
         let parser = (ty() << eof()) | (forall() << eof());
-        parser.run(&mut lexer).ok_or(())
+        parser
+            .run(&mut lexer)
+            .ok_or(format!("Error while parsing {}", s))
     }
 }
 
@@ -303,42 +305,42 @@ mod tests {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub enum T {
+pub enum Type {
     Const(String),
-    App(Box<T>, Vec<T>),
-    Arrow(Vec<T>, Box<T>),
+    App(Box<Type>, Vec<Type>),
+    Arrow(Vec<Type>, Box<Type>),
     Generic(Id),
     Unbound(Id, Level),
-    Alias(Box<T>),
+    Alias(Box<Type>),
 }
 
-impl From<(Id, Option<Level>)> for T {
+impl From<(Id, Option<Level>)> for Type {
     fn from((id, level): (Id, Option<Level>)) -> Self {
         if let Some(level) = level {
-            T::Unbound(id, level)
+            Type::Unbound(id, level)
         } else {
-            T::Generic(id)
+            Type::Generic(id)
         }
     }
 }
 
-impl T {
-    fn from(ty: Ty, gen: &mut Gen<T>) -> Self {
+impl Type {
+    fn from(ty: Ty, gen: &mut Gen<Type>) -> Self {
         let mut env = Env::new();
         match ty {
-            Ty::Const(name) => T::Const(name),
-            Ty::App(ty, params) => T::App(
-                Box::new(T::from(*ty, gen)),
+            Ty::Const(name) => Type::Const(name),
+            Ty::App(ty, params) => Type::App(
+                Box::new(Type::from(*ty, gen)),
                 params
                     .into_iter()
-                    .map(|t_param| T::from(t_param, gen))
+                    .map(|t_param| Type::from(t_param, gen))
                     .collect(),
             ),
-            Ty::Arrow(init, tail) => T::Arrow(
+            Ty::Arrow(init, tail) => Type::Arrow(
                 init.into_iter()
-                    .map(|t_param| T::from(t_param, gen))
+                    .map(|t_param| Type::from(t_param, gen))
                     .collect(),
-                Box::new(T::from(*tail, gen)),
+                Box::new(Type::from(*tail, gen)),
             ),
             Ty::Forall(params, arrow) => {
                 for param in params {
@@ -346,20 +348,20 @@ impl T {
                     env.insert(&param, t_param);
                 }
 
-                fn lookup(ty: Ty, env: &Env<T>) -> T {
+                fn lookup(ty: Ty, env: &Env<Type>) -> Type {
                     match ty {
                         Ty::Const(name) => env
                             .lookup(&name)
                             .map(|t_const| t_const.clone())
-                            .unwrap_or(T::Const(name)),
-                        Ty::App(ty, params) => T::App(
+                            .unwrap_or(Type::Const(name)),
+                        Ty::App(ty, params) => Type::App(
                             Box::new(lookup(*ty, env)),
                             params
                                 .into_iter()
                                 .map(|t_param| lookup(t_param, env))
                                 .collect(),
                         ),
-                        Ty::Arrow(init, tail) => T::Arrow(
+                        Ty::Arrow(init, tail) => Type::Arrow(
                             init.into_iter()
                                 .map(|t_param| lookup(t_param, env))
                                 .collect(),
@@ -374,16 +376,13 @@ impl T {
         }
     }
 
-    pub fn from_str(
-        s: &str,
-        gen: &mut Gen<T>,
-    ) -> std::result::Result<Self, <Ty as std::str::FromStr>::Err> {
+    pub fn from_str(s: &str, gen: &mut Gen<Type>) -> std::result::Result<Self, String> {
         let ty = Ty::from_str(s)?;
-        Ok(T::from(ty, gen))
+        Ok(Type::from(ty, gen))
     }
 }
 
-impl std::fmt::Display for T {
+impl std::fmt::Display for Type {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         fn id_to_name(mut id: Id) -> String {
             let mut name = String::new();
@@ -395,10 +394,10 @@ impl std::fmt::Display for T {
             name
         }
 
-        fn to_string(t: &T, generics: &mut HashMap<Id, String>) -> String {
+        fn to_string(t: &Type, generics: &mut HashMap<Id, String>) -> String {
             match t {
-                T::Const(name) => name.clone(),
-                T::App(t, params) => {
+                Type::Const(name) => name.clone(),
+                Type::App(t, params) => {
                     let mut string = format!("{}[", to_string(t, generics));
                     if !params.is_empty() {
                         string += &to_string(&params[0], generics);
@@ -408,18 +407,18 @@ impl std::fmt::Display for T {
                     }
                     string + "]"
                 }
-                T::Arrow(init, tail) => {
+                Type::Arrow(init, tail) => {
                     let mut string: String;
                     match init.len() {
                         0 => {
                             string = format!("() -> ");
                         }
                         1 => match init[0] {
-                            T::Const(_)
-                            | T::App(_, _)
-                            | T::Unbound(_, _)
-                            | T::Generic(_)
-                            | T::Alias(_) => {
+                            Type::Const(_)
+                            | Type::App(_, _)
+                            | Type::Unbound(_, _)
+                            | Type::Generic(_)
+                            | Type::Alias(_) => {
                                 string = format!("{} -> ", to_string(&init[0], generics));
                             }
                             _ => {
@@ -436,7 +435,7 @@ impl std::fmt::Display for T {
                     };
                     string + &format!("{}", to_string(tail, generics))
                 }
-                T::Generic(id) => {
+                Type::Generic(id) => {
                     if let Some(name) = generics.get(id) {
                         format!("{}", name)
                     } else {
@@ -445,8 +444,8 @@ impl std::fmt::Display for T {
                         name
                     }
                 }
-                T::Unbound(id, _) => format!("_{}", id),
-                T::Alias(t) => to_string(t, generics),
+                Type::Unbound(id, _) => format!("_{}", id),
+                Type::Alias(t) => to_string(t, generics),
             }
         }
 

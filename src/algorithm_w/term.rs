@@ -18,11 +18,13 @@ pub enum Term {
 }
 
 impl std::str::FromStr for Term {
-    type Err = ();
+    type Err = String;
     fn from_str(s: &str) -> std::result::Result<Self, <Self as std::str::FromStr>::Err> {
         let mut lexer = Stream::new(Tokenizer::new(s.chars()));
         let parser = term() << eof();
-        parser.run(&mut lexer).ok_or(())
+        parser
+            .run(&mut lexer)
+            .ok_or(format!("Error while parsing {}", s))
     }
 }
 
