@@ -59,8 +59,17 @@ impl std::fmt::Display for Term {
     }
 }
 
+fn name() -> Parser<'static, Token, String> {
+    ident()
+        | fmap(|_| String::from("true"), token(Token::True))
+        | fmap(|_| String::from("false"), token(Token::False))
+        | fmap(|_| String::from("not"), token(Token::Not))
+        | fmap(|_| String::from("and"), token(Token::And))
+        | fmap(|_| String::from("or"), token(Token::Or))
+}
+
 fn simple_term() -> Parser<'static, Token, Term> {
-    let p_var = fmap(Term::Var, ident());
+    let p_var = fmap(Term::Var, name());
     let p_term_parens = lazy!(parens(spaced(term())));
 
     fn args() -> Parser<'static, Token, Vec<Term>> {
@@ -75,16 +84,16 @@ fn simple_term() -> Parser<'static, Token, Term> {
             let _f = f.clone();
             fmap(move |args| Term::App(Box::new(f.clone()), args), args()) | Parser::pure(_f)
         }),
-        |call| {
-            let _call = call.clone();
-            fmap(move |args| Term::App(Box::new(call.clone()), args), args()) | Parser::pure(_call)
+        |app| {
+            let _call = app.clone();
+            fmap(move |args| Term::App(Box::new(app.clone()), args), args()) | Parser::pure(_call)
         },
     )
 }
 
 fn term() -> Parser<'static, Token, Term> {
     let p_let = bind(
-        token(Token::Let) >> spaced(ident()) << token(Token::Equals),
+        token(Token::Let) >> spaced(name()) << token(Token::Equals),
         |name| {
             bind(spaced(term()) << token(Token::In), move |assign| {
                 let name = name.clone();
@@ -96,7 +105,7 @@ fn term() -> Parser<'static, Token, Term> {
         },
     );
     let p_fn = bind(
-        token(Token::Backslash) >> spaced(ident().sep_by1(many_space())) << token(Token::Arrow),
+        token(Token::Backslash) >> spaced(name().sep_by1(many_space())) << token(Token::Arrow),
         |args| {
             fmap(
                 move |body| Term::Abs(args.clone(), Box::new(body)),
@@ -176,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn r#fn() {
+    fn abs() {
         assert_eq!(
             collect(r"\x y -> x"),
             Some(Abs(
@@ -187,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn call() {
+    fn app() {
         assert_eq!(
             collect("(fn)((a), b)"),
             Some(App(
