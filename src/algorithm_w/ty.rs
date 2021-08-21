@@ -5,7 +5,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+use std::collections::HashMap;
+use std::str::FromStr;
+
 use tokenstream::{bind, fmap, Parser, Stream, Tokenizer};
+
+use crate::{Env, Gen, Id, Level};
 
 use crate::{brackets, comma_list1, eof, ident, lazy, many_space, parens, spaced, token, Token};
 
@@ -294,5 +299,169 @@ mod tests {
             format!("{}", collect("forall[a, b] (a -> b, c) -> a").unwrap()),
             String::from("forall[a, b] (a -> b, c) -> a")
         );
+    }
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum T {
+    Const(String),
+    App(Box<T>, Vec<T>),
+    Arrow(Vec<T>, Box<T>),
+    Generic(Id),
+    Unbound(Id, Level),
+    Alias(Box<T>),
+}
+
+impl From<(Id, Option<Level>)> for T {
+    fn from((id, level): (Id, Option<Level>)) -> Self {
+        if let Some(level) = level {
+            T::Unbound(id, level)
+        } else {
+            T::Generic(id)
+        }
+    }
+}
+
+impl T {
+    fn from(ty: Ty, gen: &mut Gen<T>) -> Self {
+        let mut env = Env::new();
+        match ty {
+            Ty::Const(name) => T::Const(name),
+            Ty::App(ty, params) => T::App(
+                Box::new(T::from(*ty, gen)),
+                params
+                    .into_iter()
+                    .map(|t_param| T::from(t_param, gen))
+                    .collect(),
+            ),
+            Ty::Arrow(init, tail) => T::Arrow(
+                init.into_iter()
+                    .map(|t_param| T::from(t_param, gen))
+                    .collect(),
+                Box::new(T::from(*tail, gen)),
+            ),
+            Ty::Forall(params, arrow) => {
+                for param in params {
+                    let t_param = gen.newvar(None);
+                    env.insert(&param, t_param);
+                }
+
+                fn lookup(ty: Ty, env: &Env<T>) -> T {
+                    match ty {
+                        Ty::Const(name) => env
+                            .lookup(&name)
+                            .map(|t_const| t_const.clone())
+                            .unwrap_or(T::Const(name)),
+                        Ty::App(ty, params) => T::App(
+                            Box::new(lookup(*ty, env)),
+                            params
+                                .into_iter()
+                                .map(|t_param| lookup(t_param, env))
+                                .collect(),
+                        ),
+                        Ty::Arrow(init, tail) => T::Arrow(
+                            init.into_iter()
+                                .map(|t_param| lookup(t_param, env))
+                                .collect(),
+                            Box::new(lookup(*tail, env)),
+                        ),
+                        Ty::Forall(_, _) => unreachable!("Nested forall is not possible"),
+                    }
+                }
+
+                lookup(*arrow, &mut env)
+            }
+        }
+    }
+
+    pub fn from_str(
+        s: &str,
+        gen: &mut Gen<T>,
+    ) -> std::result::Result<Self, <Ty as std::str::FromStr>::Err> {
+        let ty = Ty::from_str(s)?;
+        Ok(T::from(ty, gen))
+    }
+}
+
+impl std::fmt::Display for T {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        fn id_to_name(mut id: Id) -> String {
+            let mut name = String::new();
+            while id != 0 {
+                id -= 1;
+                name.insert(0, ('a' as u8 + (id % 26) as u8) as char);
+                id /= 26;
+            }
+            name
+        }
+
+        fn to_string(t: &T, generics: &mut HashMap<Id, String>) -> String {
+            match t {
+                T::Const(name) => name.clone(),
+                T::App(t, params) => {
+                    let mut string = format!("{}[", to_string(t, generics));
+                    if !params.is_empty() {
+                        string += &to_string(&params[0], generics);
+                    }
+                    for i in 1..params.len() {
+                        string += &format!(", {}", to_string(&params[i], generics));
+                    }
+                    string + "]"
+                }
+                T::Arrow(init, tail) => {
+                    let mut string: String;
+                    match init.len() {
+                        0 => {
+                            string = format!("() -> ");
+                        }
+                        1 => match init[0] {
+                            T::Const(_)
+                            | T::App(_, _)
+                            | T::Unbound(_, _)
+                            | T::Generic(_)
+                            | T::Alias(_) => {
+                                string = format!("{} -> ", to_string(&init[0], generics));
+                            }
+                            _ => {
+                                string = format!("({}) -> ", to_string(&init[0], generics));
+                            }
+                        },
+                        len @ _ => {
+                            string = format!("({}", to_string(&init[0], generics));
+                            for i in 1..len {
+                                string += &format!(", {}", to_string(&init[i], generics));
+                            }
+                            string.push_str(") -> ");
+                        }
+                    };
+                    string + &format!("{}", to_string(tail, generics))
+                }
+                T::Generic(id) => {
+                    if let Some(name) = generics.get(id) {
+                        format!("{}", name)
+                    } else {
+                        let name = id_to_name(generics.len() + 1);
+                        generics.insert(*id, name.clone());
+                        name
+                    }
+                }
+                T::Unbound(id, _) => format!("_{}", id),
+                T::Alias(t) => to_string(t, generics),
+            }
+        }
+
+        let mut generics = HashMap::new();
+        let string = to_string(self, &mut generics);
+        if !generics.is_empty() {
+            let mut generics: Vec<&String> = generics.values().collect();
+            generics.sort();
+            let mut generics = generics.iter();
+            write!(fmt, "forall[{}", generics.next().unwrap())?;
+            for name in generics {
+                write!(fmt, ", {}", name)?;
+            }
+            write!(fmt, "] ")?;
+        }
+        write!(fmt, "{}", string)
     }
 }

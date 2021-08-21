@@ -8,46 +8,74 @@
 use std::collections::HashMap;
 
 pub type Id = usize;
-pub type Level = usize;
+pub type Level = isize;
 
-pub struct Env<Ty>
+pub struct Gen<T>
 where
-    Ty: From<(Id, Option<Level>)>,
+    T: From<(Id, Option<Level>)>,
 {
-    env: HashMap<String, Ty>,
     id: Id,
+    t: std::marker::PhantomData<T>,
 }
 
-impl<Ty> Env<Ty>
+impl<T> Gen<T>
 where
-    Ty: From<(Id, Option<Level>)>,
+    T: From<(Id, Option<Level>)>,
+{
+    pub fn new() -> Self {
+        Gen {
+            id: 1,
+            t: std::marker::PhantomData,
+        }
+    }
+
+    pub fn newvar(&mut self, level: Option<Level>) -> T {
+        let next_id = self.id;
+        self.id += 1;
+        T::from((next_id, level))
+    }
+
+    pub fn reset(&mut self) {
+        self.id = 1;
+    }
+}
+
+pub struct Env<T>
+where
+    T: From<(Id, Option<Level>)>,
+{
+    env: HashMap<String, T>,
+    pub gen: Gen<T>,
+}
+
+impl<T> Env<T>
+where
+    T: From<(Id, Option<Level>)>,
 {
     pub fn new() -> Self {
         Env {
             env: HashMap::new(),
-            id: 0,
+            gen: Gen::new(),
         }
     }
 
-    pub fn insert(&mut self, k: &str, v: Ty) {
+    pub fn insert(&mut self, k: &str, v: T) {
         self.env.insert(k.to_owned(), v.into());
     }
+
     pub fn remove(&mut self, k: &str) {
         self.env.remove(k);
     }
-    pub fn lookup(&self, k: &str) -> Option<&Ty> {
+
+    pub fn lookup(&self, k: &str) -> Option<&T> {
         self.env.get(k)
     }
-    pub fn lookup_mut(&mut self, k: &str) -> Option<&mut Ty> {
+
+    pub fn lookup_mut(&mut self, k: &str) -> Option<&mut T> {
         self.env.get_mut(k)
     }
+
     pub fn clear(&mut self) {
         self.env.clear();
-    }
-
-    pub fn newvar(&mut self, level: Option<Level>) -> Ty {
-        let next_id = self.id;
-        self.id += 1;
-        Ty::from((next_id, level))
     }
 }
