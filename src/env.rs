@@ -10,6 +10,10 @@ use std::collections::HashMap;
 pub type Id = usize;
 pub type Level = isize;
 
+trait Bindable where {
+    fn id(_: Self) -> Option<Id>;
+}
+
 #[derive(Clone)]
 pub struct Gen<T>
 where
@@ -69,9 +73,5 @@ where
 
     pub fn lookup(&self, k: &str) -> Option<&T> {
         self.env.get(k)
-    }
-
-    pub fn clear(&mut self) {
-        self.env.clear();
     }
 }

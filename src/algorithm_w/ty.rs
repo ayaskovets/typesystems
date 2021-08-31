@@ -309,9 +309,8 @@ pub enum Type {
     Const(String),
     App(Box<Type>, Vec<Type>),
     Arrow(Vec<Type>, Box<Type>),
-    Generic(Id),
     Unbound(Id, Level),
-    Alias(Box<Type>),
+    Generic(Id),
 }
 
 impl From<(Id, Option<Level>)> for Type {
@@ -417,8 +416,7 @@ impl std::fmt::Display for Type {
                             Type::Const(_)
                             | Type::App(_, _)
                             | Type::Unbound(_, _)
-                            | Type::Generic(_)
-                            | Type::Alias(_) => {
+                            | Type::Generic(_) => {
                                 string = format!("{} -> ", to_string(&init[0], generics));
                             }
                             _ => {
@@ -435,6 +433,7 @@ impl std::fmt::Display for Type {
                     };
                     string + &format!("{}", to_string(tail, generics))
                 }
+                Type::Unbound(id, _) => format!("_{}", id),
                 Type::Generic(id) => {
                     if let Some(name) = generics.get(id) {
                         format!("{}", name)
@@ -444,8 +443,6 @@ impl std::fmt::Display for Type {
                         name
                     }
                 }
-                Type::Unbound(id, _) => format!("_{}", id),
-                Type::Alias(t) => to_string(t, generics),
             }
         }
 
