@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 use tokenstream::{bind, fmap, Parser, Stream, Tokenizer};
 
-use crate::{Env, Gen, Id, Level};
+use crate::{Bindable, Env, Gen, Id, Level};
 
 use crate::{brackets, comma_list1, eof, ident, lazy, many_space, parens, spaced, token, Token};
 
@@ -323,6 +323,16 @@ impl From<(Id, Option<Level>)> for Type {
     }
 }
 
+impl Bindable for Type {
+    fn get_unbound_id_level(t: &Self) -> Option<(Id, Level)> {
+        if let Type::Unbound(id, level) = t {
+            Some((*id, *level))
+        } else {
+            None
+        }
+    }
+}
+
 impl Type {
     fn from(ty: Ty, gen: &mut Gen<Type>) -> Self {
         let mut env = Env::new();
@@ -433,7 +443,7 @@ impl std::fmt::Display for Type {
                     };
                     string + &format!("{}", to_string(tail, generics))
                 }
-                Type::Unbound(id, _) => format!("_{}", id),
+                Type::Unbound(id, level) => format!("[{},{}]", id, level),
                 Type::Generic(id) => {
                     if let Some(name) = generics.get(id) {
                         format!("{}", name)
