@@ -309,14 +309,14 @@ pub enum Type {
     Const(String),
     App(Box<Type>, Vec<Type>),
     Arrow(Vec<Type>, Box<Type>),
-    Unbound(Id, Level),
+    TypeVar(Id, Level),
     Generic(Id),
 }
 
 impl From<(Id, Option<Level>)> for Type {
     fn from((id, level): (Id, Option<Level>)) -> Self {
         if let Some(level) = level {
-            Type::Unbound(id, level)
+            Type::TypeVar(id, level)
         } else {
             Type::Generic(id)
         }
@@ -325,7 +325,7 @@ impl From<(Id, Option<Level>)> for Type {
 
 impl Bindable for Type {
     fn get_unbound_id_level(t: &Self) -> Option<(Id, Level)> {
-        if let Type::Unbound(id, level) = t {
+        if let Type::TypeVar(id, level) = t {
             Some((*id, *level))
         } else {
             None
@@ -425,7 +425,7 @@ impl std::fmt::Display for Type {
                         1 => match init[0] {
                             Type::Const(_)
                             | Type::App(_, _)
-                            | Type::Unbound(_, _)
+                            | Type::TypeVar(_, _)
                             | Type::Generic(_) => {
                                 string = format!("{} -> ", to_string(&init[0], generics));
                             }
@@ -443,7 +443,7 @@ impl std::fmt::Display for Type {
                     };
                     string + &format!("{}", to_string(tail, generics))
                 }
-                Type::Unbound(id, level) => format!("[{},{}]", id, level),
+                Type::TypeVar(id, level) => format!("[{},{}]", id, level),
                 Type::Generic(id) => {
                     if let Some(name) = generics.get(id) {
                         format!("{}", name)
