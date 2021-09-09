@@ -85,15 +85,19 @@ where
         self.bound.remove(&(id, level))
     }
 
-    pub fn lookup_binding(&self, id: Id, level: Level) -> Option<&T> {
-        if let Some(v) = self.bound.get(&(id, level)) {
-            if let Some((id, level)) = Bindable::get_unbound_id_level(v) {
-                if let Some(binding) = self.lookup_binding(id, level) {
-                    return Some(binding);
+    pub fn lookup_binding(&self, mut id: Id, mut level: Level) -> Option<&T> {
+        let mut prev: Option<&T> = None;
+        loop {
+            if let Some(next) = self.bound.get(&(id, level)) {
+                prev = Some(next);
+                if let Some((id2, level2)) = Bindable::get_unbound_id_level(next) {
+                    id = id2;
+                    level = level2;
+                    continue;
                 }
             }
-            return Some(v);
+            break;
         }
-        None
+        prev
     }
 }
