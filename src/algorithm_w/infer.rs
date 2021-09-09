@@ -19,6 +19,36 @@ pub fn unify(t1: &Type, t2: &Type, env: &mut Env<Type>) -> Result<Type, String> 
             Unify { env }
         }
 
+        fn update_bound_levels(&mut self, id: Id, level: Level, t: &Type) -> Result<(), String> {
+            match t {
+                Type::TypeVar(id2, level2) => {
+                    if id == *id2 {
+                        Err(format!("Infinite type"))
+                    } else if *level2 > level {
+                        self.env.bind(*id2, *level2, Type::TypeVar(*id2, level));
+                        Ok(())
+                    } else {
+                        Ok(())
+                    }
+                }
+                Type::Const(_) => Ok(()),
+                Type::Generic(_) => unreachable!(),
+                Type::App(t, params) => {
+                    self.update_bound_levels(id, level, t)?;
+                    for param in params {
+                        self.update_bound_levels(id, level, param)?;
+                    }
+                    Ok(())
+                }
+                Type::Arrow(init, tail) => {
+                    for param in init {
+                        self.update_bound_levels(id, level, param)?;
+                    }
+                    self.update_bound_levels(id, level, tail)
+                }
+            }
+        }
+
         pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<Type, String> {
             if *t1 == *t2 {
                 return Ok(t1.clone());
@@ -52,6 +82,7 @@ pub fn unify(t1: &Type, t2: &Type, env: &mut Env<Type>) -> Result<Type, String> 
                         self.unify(&binding, t)
                     } else {
                         self.env.bind(*id, *level, t.clone());
+                        self.update_bound_levels(*id, *level, t)?;
                         Ok(t.clone())
                     }
                 }
@@ -170,7 +201,7 @@ pub fn infer(term: &Term, env: &Env<Type>, gen: &Gen<Type>) -> Result<Type, Stri
             Infer { env, gen }
         }
 
-        fn genarrow(&mut self, t: &Type, args_len: usize) -> Result<(Vec<Type>, Type), String> {
+        fn genarrow(&mut self, t: Type, args_len: usize) -> Result<(Vec<Type>, Type), String> {
             match t {
                 Type::Arrow(init, tail) => {
                     if init.len() == args_len {
@@ -183,20 +214,17 @@ pub fn infer(term: &Term, env: &Env<Type>, gen: &Gen<Type>) -> Result<Type, Stri
                     }
                 }
                 Type::TypeVar(id, level) => {
-                    if let Some(binding) = self.env.lookup_binding(*id, *level) {
+                    if let Some(binding) = self.env.lookup_binding(id, level) {
                         let binding = binding.clone();
-                        return self.genarrow(&binding, args_len);
+                        return self.genarrow(binding, args_len);
                     }
 
-                    let init: Vec<Type> = std::iter::repeat_with(|| self.gen.newvar(Some(*level)))
+                    let init: Vec<Type> = std::iter::repeat_with(|| self.gen.newvar(Some(level)))
                         .take(args_len)
                         .collect();
-                    let tail = self.gen.newvar(Some(*level));
-                    self.env.bind(
-                        *id,
-                        *level,
-                        Type::Arrow(init.clone(), Box::new(tail.clone())),
-                    );
+                    let tail = self.gen.newvar(Some(level));
+                    self.env
+                        .bind(id, level, Type::Arrow(init.clone(), Box::new(tail.clone())));
                     Ok((init, tail))
                 }
                 t_f @ _ => Err(format!("Invalid type of function: {}", t_f)),
@@ -215,7 +243,7 @@ pub fn infer(term: &Term, env: &Env<Type>, gen: &Gen<Type>) -> Result<Type, Stri
                 Term::Let(name, assign, body) => {
                     let t_assign = generalize(&self.infer(assign, level + 1)?, level, &self.env);
 
-                    let shadowing = self.env.insert(name, t_assign.clone());
+                    let shadowing = self.env.insert(name, t_assign);
                     let t_body = self.infer(body, level)?;
                     self.env.remove(name);
 
@@ -259,7 +287,7 @@ pub fn infer(term: &Term, env: &Env<Type>, gen: &Gen<Type>) -> Result<Type, Stri
                 }
                 Term::App(f, args) => {
                     let t_f = self.infer(f, level)?;
-                    let (t_args, t_return) = self.genarrow(&t_f, args.len())?;
+                    let (t_args, t_return) = self.genarrow(t_f, args.len())?;
 
                     for (arg, t_arg) in args.iter().zip(t_args.iter()) {
                         let t_param = self.infer(arg, level)?;
